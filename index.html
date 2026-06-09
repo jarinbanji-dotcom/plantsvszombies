@@ -480,18 +480,19 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 /* Context menu (long press / right click) */
 #ctx-menu{
   position:fixed;z-index:99997;
-  background:#1e293b;border:1px solid #334155;
-  border-radius:14px;padding:6px;
-  box-shadow:0 8px 32px rgba(0,0,0,.7);
-  display:none;min-width:160px;
+  background:#1e293b;border:1px solid #2d3f55;
+  border-radius:40px;padding:6px 10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.8);
+  display:none;
 }
-#ctx-menu.show{display:block;}
+#ctx-menu.show{display:block;animation:ctxPop .18s cubic-bezier(.34,1.56,.64,1);}
+@keyframes ctxPop{from{opacity:0;transform:scale(.7);}to{opacity:1;transform:scale(1);}}
 .ctx-emoji-row{
-  display:flex;gap:0px;justify-content:space-around;align-items:center;
-  padding:8px 6px 10px;border-bottom:1px solid #334155;margin-bottom:4px;
+  display:flex;gap:4px;align-items:center;
+  padding:4px 2px;
 }
-.ctx-emoji{font-size:26px;cursor:pointer;padding:6px 7px;border-radius:10px;transition:background .1s,transform .1s;line-height:1;text-align:center;}
-.ctx-emoji:hover,.ctx-emoji:active{background:rgba(255,255,255,.12);transform:scale(1.2);}
+.ctx-emoji{font-size:30px;cursor:pointer;padding:6px 8px;border-radius:50%;transition:background .1s,transform .15s;line-height:1;text-align:center;}
+.ctx-emoji:hover,.ctx-emoji:active{background:rgba(255,255,255,.12);transform:scale(1.25);}
 .ctx-item{
   display:flex;align-items:center;gap:9px;
   padding:9px 12px;border-radius:8px;
@@ -574,14 +575,19 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 }
 
 /* ── Message long-press highlight ── */
-.msg-row.highlighted .bubble{
-  outline:2px solid rgba(255,255,255,.25);
-  background-filter:brightness(1.3);
-  filter:brightness(1.25);
-  transition:filter .15s;
+.msg-row.highlighted{
+  background:rgba(255,255,255,.1);
+  border-radius:6px;
+  transition:background .15s;
 }
-.msg-row.mine.highlighted .bubble{ outline-color:rgba(147,197,253,.5); }
-.msg-row.theirs.highlighted .bubble{ outline-color:rgba(255,255,255,.25); }
+/* ── Message long-press highlight ── */
+.msg-row.highlighted{
+  background:rgba(255,255,255,.08);
+  border-radius:8px;
+  margin-left:-8px;margin-right:-8px;
+  padding-left:8px;padding-right:8px;
+  transition:background .15s;
+}
 </style>
 </head>
 <body>
@@ -615,8 +621,10 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
     <span class="ctx-emoji" data-emoji="🍆">🍆</span>
     <span class="ctx-emoji" id="ctx-more-emoji" style="font-size:18px;color:var(--text-secondary);">＋</span>
   </div>
-  <div class="ctx-item" id="ctx-edit" style="display:none;">✏️ Edit</div>
-  <div class="ctx-item danger" id="ctx-delete" style="display:none;">🗑️ Delete</div>
+  <div id="ctx-actions" style="display:none;border-top:1px solid #2d3f55;margin-top:4px;padding-top:4px;border-radius:0 0 20px 20px;">
+    <div class="ctx-item" id="ctx-edit">✏️ Edit</div>
+    <div class="ctx-item danger" id="ctx-delete">🗑️ Delete</div>
+  </div>
 </div>
 
 
@@ -1552,33 +1560,28 @@ var ctxMenu = document.getElementById("ctx-menu");
 
 function showCtxMenu(x, y, msgKey, row, mine){
   ctxTarget = { key: msgKey, row: row, mine: mine };
-  document.getElementById("ctx-delete").style.display = mine ? "flex" : "none";
-  document.getElementById("ctx-edit").style.display   = mine ? "flex" : "none";
+  var actionsEl = document.getElementById("ctx-actions");
+  if(actionsEl) actionsEl.style.display = mine ? "block" : "none";
 
   ctxMenu.classList.add("show");
 
-  // Get menu dimensions after showing
-  var mw = ctxMenu.offsetWidth  || 220;
-  var mh = ctxMenu.offsetHeight || 160;
-  var vw = window.innerWidth;
-  var vh = window.innerHeight;
-  var pad = 10;
+  var mw  = ctxMenu.offsetWidth  || 220;
+  var mh  = ctxMenu.offsetHeight || 120;
+  var vw  = window.innerWidth;
+  var vh  = window.innerHeight;
+  var pad = 8;
 
-  // Center horizontally on mobile, near click on desktop
-  var left, top;
-  if(vw <= 680){
-    // Mobile: center horizontally
-    left = (vw - mw) / 2;
-  } else {
-    left = x - mw / 2;
-  }
+  // Get message row position to anchor popup above it
+  var rect = row.getBoundingClientRect();
 
-  // Position above the tap point if too close to bottom
-  if(y + mh + pad > vh){
-    top = y - mh - pad;
-  } else {
-    top = y + pad;
-  }
+  // Horizontal: center on the bubble
+  var bubbleEl = row.querySelector(".bubble");
+  var bRect = bubbleEl ? bubbleEl.getBoundingClientRect() : rect;
+  var left = bRect.left + (bRect.width / 2) - (mw / 2);
+
+  // Vertical: place emoji row just above the message
+  var top = rect.top - mh - 8;
+  if(top < pad) top = rect.bottom + 8; // flip below if no space above
 
   // Clamp to viewport
   left = Math.max(pad, Math.min(left, vw - mw - pad));
