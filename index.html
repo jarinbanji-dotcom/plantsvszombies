@@ -1026,8 +1026,17 @@ function openRoom(otherUser, otherName){
     ml.appendChild(row);
     ml.scrollTop=ml.scrollHeight;
     var rOn = document.getElementById('rain-toggle') && document.getElementById('rain-toggle').checked;
-    if(rOn && !mine && msg.text && isEmojiOnly(msg.text)){ triggerRain(extractFirstEmoji(msg.text),100,3000); }
     if(!mine && currentRoom){ markSeen(currentRoom); }
+    // Apply cached seen state so ticks are correct immediately on load
+    if(mine && msg.ts){
+      (function(r, msgTs){
+        var cachedSeen = window._seenCache && window._seenCache[currentRoom];
+        if(cachedSeen !== undefined){
+          var tick = r.querySelector(".tick");
+          if(tick && msgTs <= cachedSeen){ tick.textContent="✓✓"; tick.style.color="#60a5fa"; }
+        }
+      })(row, msg.ts);
+    }
     // Apply any already-loaded reaction for this message
     if(reactRef){
       reactRef.child(snap.key).once("value", function(rSnap){
@@ -1056,8 +1065,7 @@ function sendMessage(){
   db.ref("messages/"+currentRoom).push(msgData);
   replyingTo = null;
   document.getElementById("reply-bar").classList.remove("show");
-  var rainOn = document.getElementById('rain-toggle') && document.getElementById('rain-toggle').checked;
-  if(rainOn && isEmojiOnly(text)){ triggerRain(extractFirstEmoji(text),100,3000); }
+  // rain only triggered from emoji picker click, not from sending messages
 }
 $("btn-send").addEventListener("click",sendMessage);
 $("msg-input").addEventListener("keydown",function(e){
@@ -1725,22 +1733,33 @@ function markSeen(roomId){
 
 function listenSeen(roomId, otherUser){
   if(seenRef && seenCbFn){ seenRef.off("value", seenCbFn); seenRef=null; }
+  // Init cache
+  if(!window._seenCache) window._seenCache = {};
+  // Fetch once immediately to populate cache before messages render
+  db.ref("seen/"+roomId+"/"+otherUser+"/ts").once("value", function(snap){
+    window._seenCache[roomId] = snap.val() || 0;
+    applySeenTicks(window._seenCache[roomId]);
+  });
   seenRef = db.ref("seen/"+roomId+"/"+otherUser+"/ts");
   seenCbFn = seenRef.on("value", function(snap){
     var seenTs = snap.val() || 0;
-    // Update all my sent message ticks
-    document.querySelectorAll(".msg-row.mine[data-ts]").forEach(function(row){
-      var msgTs = parseInt(row.dataset.ts) || 0;
-      var tick  = row.querySelector(".tick");
-      if(!tick) return;
-      if(msgTs <= seenTs){
-        tick.textContent = "✓✓";
-        tick.style.color = "#60a5fa"; // blue double tick
-      } else {
-        tick.textContent = "✓";
-        tick.style.color = "rgba(255,255,255,.45)"; // grey single tick
-      }
-    });
+    window._seenCache[roomId] = seenTs;
+    applySeenTicks(seenTs);
+  });
+}
+
+function applySeenTicks(seenTs){
+  document.querySelectorAll(".msg-row.mine[data-ts]").forEach(function(row){
+    var msgTs = parseInt(row.dataset.ts) || 0;
+    var tick  = row.querySelector(".tick");
+    if(!tick) return;
+    if(msgTs <= seenTs){
+      tick.textContent = "✓✓";
+      tick.style.color = "#60a5fa";
+    } else {
+      tick.textContent = "✓";
+      tick.style.color = "rgba(255,255,255,.45)";
+    }
   });
 }
 
