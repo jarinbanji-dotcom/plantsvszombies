@@ -131,7 +131,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   display:flex;
   flex-direction:column;
   gap:3px;
-  min-height:0;
+  min-height:0;user-select:none;-webkit-user-select:none;
 }
 #messages-list::-webkit-scrollbar{width:4px;}
 #messages-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
@@ -487,11 +487,11 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 }
 #ctx-menu.show{display:block;}
 .ctx-emoji-row{
-  display:flex;gap:2px;justify-content:space-around;
-  padding:6px 4px 8px;border-bottom:1px solid #334155;margin-bottom:4px;
+  display:flex;gap:0px;justify-content:space-around;align-items:center;
+  padding:8px 6px 10px;border-bottom:1px solid #334155;margin-bottom:4px;
 }
-.ctx-emoji{font-size:24px;cursor:pointer;padding:4px 6px;border-radius:8px;transition:background .1s;line-height:1;}
-.ctx-emoji:hover{background:rgba(255,255,255,.1);}
+.ctx-emoji{font-size:26px;cursor:pointer;padding:6px 7px;border-radius:10px;transition:background .1s,transform .1s;line-height:1;text-align:center;}
+.ctx-emoji:hover,.ctx-emoji:active{background:rgba(255,255,255,.12);transform:scale(1.2);}
 .ctx-item{
   display:flex;align-items:center;gap:9px;
   padding:9px 12px;border-radius:8px;
@@ -518,6 +518,70 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   background:#6b7280;transition:background .3s;
 }
 .presence-dot.online{background:#22c55e;}
+
+/* ── WhatsApp-style reaction picker bottom sheet ── */
+#react-picker{display:none;position:fixed;inset:0;z-index:999998;}
+#rp-overlay{position:absolute;inset:0;background:rgba(0,0,0,.5);}
+#rp-sheet{
+  position:absolute;bottom:0;left:0;right:0;
+  background:#1e293b;border-radius:20px 20px 0 0;
+  padding:12px 12px 24px;
+  transform:translateY(100%);
+  transition:transform .28s cubic-bezier(.32,.72,0,1);
+  max-height:55vh;display:flex;flex-direction:column;gap:8px;
+}
+#rp-handle{width:36px;height:4px;background:#475569;border-radius:4px;margin:0 auto 4px;}
+#rp-search-wrap{flex-shrink:0;}
+#rp-search{
+  width:100%;padding:8px 14px;background:#0f172a;
+  border:1px solid #334155;border-radius:20px;
+  color:#e2e8f0;font-size:13.5px;outline:none;font-family:var(--font);
+}
+#rp-search::placeholder{color:#475569;}
+#rp-search:focus{border-color:var(--accent);}
+#rp-cats{
+  display:flex;gap:4px;overflow-x:auto;flex-shrink:0;padding-bottom:2px;
+  scrollbar-width:none;
+}
+#rp-cats::-webkit-scrollbar{display:none;}
+.rp-cat{
+  background:transparent;border:none;border-radius:20px;
+  padding:5px 12px;font-size:13px;color:#94a3b8;cursor:pointer;
+  white-space:nowrap;font-family:var(--font);transition:background .15s,color .15s;flex-shrink:0;
+}
+.rp-cat.active,.rp-cat:hover{background:#1d4ed8;color:#fff;}
+#rp-grid{
+  display:grid;grid-template-columns:repeat(8,1fr);
+  gap:2px;overflow-y:auto;flex:1;
+  scrollbar-width:thin;scrollbar-color:#334155 transparent;
+}
+.rp-emoji{
+  font-size:26px;text-align:center;padding:6px 2px;
+  border-radius:10px;cursor:pointer;transition:background .1s,transform .1s;
+  line-height:1.3;
+}
+.rp-emoji:hover,.rp-emoji:active{background:rgba(255,255,255,.1);transform:scale(1.15);}
+@media(max-width:680px){
+  #rp-grid{grid-template-columns:repeat(7,1fr);}
+  .rp-emoji{font-size:24px;}
+}
+
+/* Disable text selection on chat messages like WhatsApp */
+.msg-row, .msg-row *, .bubble, .bubble *{
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+}
+
+/* ── Message long-press highlight ── */
+.msg-row.highlighted .bubble{
+  outline:2px solid rgba(255,255,255,.25);
+  background-filter:brightness(1.3);
+  filter:brightness(1.25);
+  transition:filter .15s;
+}
+.msg-row.mine.highlighted .bubble{ outline-color:rgba(147,197,253,.5); }
+.msg-row.theirs.highlighted .bubble{ outline-color:rgba(255,255,255,.25); }
 </style>
 </head>
 <body>
@@ -543,14 +607,15 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 <div id="del-menu"><div class="del-menu-item" id="del-btn">🗑️ Delete message</div></div>
 <div id="ctx-menu">
   <div class="ctx-emoji-row">
-    <span class="ctx-emoji" data-emoji="❤️">❤️</span>
+    <span class="ctx-emoji" data-emoji="🥰">🥰</span>
     <span class="ctx-emoji" data-emoji="😂">😂</span>
-    <span class="ctx-emoji" data-emoji="😮">😮</span>
-    <span class="ctx-emoji" data-emoji="😢">😢</span>
-    <span class="ctx-emoji" data-emoji="👍">👍</span>
-    <span class="ctx-emoji" data-emoji="🔥">🔥</span>
+    <span class="ctx-emoji" data-emoji="😏">😏</span>
+    <span class="ctx-emoji" data-emoji="💦">💦</span>
+    <span class="ctx-emoji" data-emoji="🍑">🍑</span>
+    <span class="ctx-emoji" data-emoji="🍆">🍆</span>
+    <span class="ctx-emoji" id="ctx-more-emoji" style="font-size:18px;color:var(--text-secondary);">＋</span>
   </div>
-  <div class="ctx-item" id="ctx-reply">↩️ Reply</div>
+  <div class="ctx-item" id="ctx-edit" style="display:none;">✏️ Edit</div>
   <div class="ctx-item danger" id="ctx-delete" style="display:none;">🗑️ Delete</div>
 </div>
 
@@ -781,19 +846,8 @@ function aColor(n){
             setTimeout(function(){ picker.style.transform = ""; }, 200);
             return;
           }
-          // Normal insert
-          var inp = $("msg-input");
-          inp.focus();
-          var sel = window.getSelection();
-          if(sel && sel.rangeCount){
-            var range = sel.getRangeAt(0);
-            range.deleteContents();
-            range.insertNode(document.createTextNode(emoji));
-            range.collapse(false);
-            sel.removeAllRanges(); sel.addRange(range);
-          } else {
-            inp.innerText += emoji;
-          }
+          // Insert at saved cursor position
+          insertAtCursor(emoji);
         };
       })(em);
       grid.appendChild(s);
@@ -811,6 +865,17 @@ function aColor(n){
 
   $("btn-emoji").addEventListener("click", function(e){
     e.stopPropagation();
+    // Save cursor BEFORE picker opens
+    var inp = document.getElementById("msg-input");
+    var sel = window.getSelection();
+    if(sel && sel.rangeCount && inp.contains(sel.anchorNode)){
+      savedRange = sel.getRangeAt(0).cloneRange();
+    } else {
+      var r = document.createRange();
+      r.selectNodeContents(inp);
+      r.collapse(false);
+      savedRange = r;
+    }
     $("emoji-picker").classList.toggle("open");
   });
   document.addEventListener("click", function(e){
@@ -1008,7 +1073,7 @@ function openRoom(otherUser, otherName){
     } else if(msg.type==="image"){
       bubbleContent = '<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
     } else {
-      bubbleContent = '<span class="bubble-text" style="display:block;padding-right:44px;">'+linkifyText(msg.text)+'</span>';
+      bubbleContent = '<span class="bubble-text" style="display:block;padding-right:44px;">'+linkifyText(msg.text)+(msg.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+'</span>';
     }
     row.innerHTML=
       '<div class="bubble" style="'+(isMedia?"padding:4px 4px 20px;":"")+'">'+
@@ -1082,6 +1147,35 @@ function sendMessage(){
   $("emoji-picker").classList.remove("open");
   clearTimeout(typingTimeout);
   setTyping(false);
+
+  // Handle edit mode
+  if(window._editingKey){
+    var editKey = window._editingKey;
+    var editRow = window._editingRow;
+    window._editingKey = null;
+    window._editingRow = null;
+    document.getElementById("reply-bar").classList.remove("show");
+    document.getElementById("reply-bar-name").style.color = "var(--accent)";
+    // Update in Firebase
+    db.ref("messages/"+currentRoom+"/"+editKey).update({ text: text, edited: true });
+    // Update bubble text locally immediately
+    if(editRow){
+      var bt = editRow.querySelector(".bubble-text");
+      if(bt){
+        bt.innerHTML = linkifyText(text);
+        // Add edited label if not already there
+        if(!editRow.querySelector(".edited-label")){
+          var lbl = document.createElement("span");
+          lbl.className = "edited-label";
+          lbl.textContent = " (edited)";
+          lbl.style.cssText = "font-size:10px;opacity:.55;";
+          bt.appendChild(lbl);
+        }
+      }
+    }
+    return;
+  }
+
   var msgData = {from:me.username, text:text, ts:Date.now()};
   if(replyingTo) msgData.replyTo = { key:replyingTo.key, from:replyingTo.from, text:replyingTo.text };
   db.ref("messages/"+currentRoom).push(msgData);
@@ -1459,45 +1553,120 @@ var ctxMenu = document.getElementById("ctx-menu");
 function showCtxMenu(x, y, msgKey, row, mine){
   ctxTarget = { key: msgKey, row: row, mine: mine };
   document.getElementById("ctx-delete").style.display = mine ? "flex" : "none";
+  document.getElementById("ctx-edit").style.display   = mine ? "flex" : "none";
 
-  var mw=180, mh=160;
-  ctxMenu.style.left = Math.min(x, window.innerWidth  - mw - 8)+"px";
-  ctxMenu.style.top  = Math.min(y, window.innerHeight - mh - 8)+"px";
   ctxMenu.classList.add("show");
 
-  // hide old delete menu
+  // Get menu dimensions after showing
+  var mw = ctxMenu.offsetWidth  || 220;
+  var mh = ctxMenu.offsetHeight || 160;
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+  var pad = 10;
+
+  // Center horizontally on mobile, near click on desktop
+  var left, top;
+  if(vw <= 680){
+    // Mobile: center horizontally
+    left = (vw - mw) / 2;
+  } else {
+    left = x - mw / 2;
+  }
+
+  // Position above the tap point if too close to bottom
+  if(y + mh + pad > vh){
+    top = y - mh - pad;
+  } else {
+    top = y + pad;
+  }
+
+  // Clamp to viewport
+  left = Math.max(pad, Math.min(left, vw - mw - pad));
+  top  = Math.max(pad, Math.min(top,  vh - mh - pad));
+
+  ctxMenu.style.left = left + "px";
+  ctxMenu.style.top  = top  + "px";
+
   document.getElementById("del-menu").classList.remove("show");
 }
 
 document.addEventListener("click", function(e){
-  if(!ctxMenu.contains(e.target)) ctxMenu.classList.remove("show");
+  if(!ctxMenu.contains(e.target)){
+    ctxMenu.classList.remove("show");
+    document.querySelectorAll(".msg-row.highlighted").forEach(function(r){ r.classList.remove("highlighted"); });
+  }
 });
 document.addEventListener("touchstart", function(e){
-  if(!ctxMenu.contains(e.target)) ctxMenu.classList.remove("show");
+  if(!ctxMenu.contains(e.target)){
+    ctxMenu.classList.remove("show");
+    document.querySelectorAll(".msg-row.highlighted").forEach(function(r){ r.classList.remove("highlighted"); });
+  }
 },{passive:true});
 
-// Quick emoji reactions
-ctxMenu.querySelectorAll(".ctx-emoji").forEach(function(btn){
+// Quick emoji reactions - only the 6 emoji buttons
+ctxMenu.querySelectorAll(".ctx-emoji[data-emoji]").forEach(function(btn){
   btn.addEventListener("click", function(){
     if(!ctxTarget || !currentRoom) return;
     var emoji = this.dataset.emoji;
     var path  = "reactions/"+currentRoom+"/"+ctxTarget.key+"/"+me.username;
     db.ref(path).once("value", function(snap){
-      if(snap.val()===emoji) db.ref(path).remove(); // toggle off
+      if(snap.val()===emoji) db.ref(path).remove();
       else db.ref(path).set(emoji);
     });
     ctxMenu.classList.remove("show");
   });
 });
 
-// Reply from context menu
-document.getElementById("ctx-reply").addEventListener("click", function(){
+// + button — separate listener, opens full emoji reaction picker
+document.getElementById("ctx-more-emoji").addEventListener("click", function(e){
+  e.stopPropagation(); // prevent outside-click handler from closing it immediately
   if(!ctxTarget) return;
-  var bubble = ctxTarget.row.querySelector(".bubble-text");
-  var txt = bubble ? (bubble.innerText||bubble.textContent) : "📷 Image";
-  setReplyingTo(ctxTarget.key, ctxTarget.mine ? me.username : document.getElementById("room-name").textContent, txt);
   ctxMenu.classList.remove("show");
-  document.getElementById("msg-input").focus();
+  reactPickerKey = ctxTarget.key;
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+  openReactPicker(reactPickerKey);
+});
+
+// Edit message
+document.getElementById("ctx-edit").addEventListener("click", function(){
+  if(!ctxTarget || !currentRoom) return;
+  var bubble = ctxTarget.row.querySelector(".bubble-text");
+  var oldText = bubble ? (bubble.innerText||bubble.textContent).trim() : "";
+  if(!oldText) return;
+
+  // Show edit bar above input
+  var editBar = document.getElementById("reply-bar");
+  document.getElementById("reply-bar-name").textContent = "Edit message";
+  document.getElementById("reply-bar-name").style.color = "#f59e0b";
+  document.getElementById("reply-bar-text").textContent = oldText;
+  editBar.classList.add("show");
+
+  // Pre-fill input with old text
+  var inp = document.getElementById("msg-input");
+  inp.innerText = oldText;
+  inp.focus();
+  // Move cursor to end
+  var range = document.createRange();
+  var sel   = window.getSelection();
+  range.selectNodeContents(inp);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  // Store editing state
+  window._editingKey = ctxTarget.key;
+  window._editingRow = ctxTarget.row;
+  ctxMenu.classList.remove("show");
+});
+
+// Cancel edit when reply bar X is clicked
+var origReplyClose = document.getElementById("reply-bar-close").onclick;
+document.getElementById("reply-bar-close").addEventListener("click", function(){
+  window._editingKey = null;
+  window._editingRow = null;
+  document.getElementById("reply-bar-name").style.color = "var(--accent)";
+  document.getElementById("msg-input").innerText = "";
 });
 
 // Delete from context menu
@@ -1507,6 +1676,7 @@ document.getElementById("ctx-delete").addEventListener("click", function(){
   db.ref("reactions/"+currentRoom+"/"+ctxTarget.key).remove();
   if(ctxTarget.row) ctxTarget.row.remove();
   ctxMenu.classList.remove("show");
+  document.querySelectorAll(".msg-row.highlighted").forEach(function(r){ r.classList.remove("highlighted"); });
 });
 
 // ── Reply bar ─────────────────────────────────────────────────────────────────
@@ -1575,8 +1745,10 @@ document.getElementById("messages-list").addEventListener("touchstart", function
   var t = e.touches[0];
   longPressTimer = setTimeout(function(){
     var mine = row.classList.contains("mine");
+    // Highlight the message
+    document.querySelectorAll(".msg-row.highlighted").forEach(function(r){ r.classList.remove("highlighted"); });
+    row.classList.add("highlighted");
     showCtxMenu(t.clientX, t.clientY, row.dataset.key, row, mine);
-    // haptic feedback if available
     if(navigator.vibrate) navigator.vibrate(40);
   }, 600);
 },{passive:true});
@@ -1589,6 +1761,8 @@ document.getElementById("messages-list").addEventListener("contextmenu", functio
   var row = e.target.closest(".msg-row");
   if(!row) return;
   e.preventDefault();
+  document.querySelectorAll(".msg-row.highlighted").forEach(function(r){ r.classList.remove("highlighted"); });
+  row.classList.add("highlighted");
   showCtxMenu(e.clientX, e.clientY, row.dataset.key, row, row.classList.contains("mine"));
 });
 
@@ -1599,46 +1773,103 @@ var reactPickerKey = null;
 var reactPickerEl = (function(){
   var el = document.createElement("div");
   el.id = "react-picker";
-  el.style.cssText = "position:fixed;z-index:99999;background:#1e293b;border:1px solid #334155;border-radius:14px;padding:10px;box-shadow:0 8px 32px rgba(0,0,0,.7);display:none;max-width:280px;";
-  // Common reaction emojis grid
-  var emojis = ["❤️","😂","😮","😢","👍","🔥","🎉","😍","🥺","😭","💀","🤣","✅","💯","🙏","👏","😤","🤔","😎","🥳","😘","💪","👎","😡","🤯","😱","🫶","💔","✨","🫠"];
-  emojis.forEach(function(em){
-    var s = document.createElement("span");
-    s.textContent = em;
-    s.style.cssText = "font-size:22px;cursor:pointer;padding:4px 5px;border-radius:7px;display:inline-block;transition:background .1s;";
-    s.onmouseover = function(){this.style.background="rgba(255,255,255,.1)";};
-    s.onmouseout  = function(){this.style.background="";};
-    s.addEventListener("click", function(){
-      if(!reactPickerKey || !currentRoom) return;
-      var path = "reactions/"+currentRoom+"/"+reactPickerKey+"/"+me.username;
-      db.ref(path).once("value", function(snap){
-        if(snap.val()===em) db.ref(path).remove();
-        else db.ref(path).set(em);
-      });
-      el.style.display="none"; reactPickerKey=null;
-    });
-    el.appendChild(s);
-  });
+  el.innerHTML = [
+    '<div id="rp-overlay"></div>',
+    '<div id="rp-sheet">',
+      '<div id="rp-handle"></div>',
+      '<div id="rp-search-wrap">',
+        '<input id="rp-search" placeholder="Search emoji..." autocomplete="off"/>',
+      '</div>',
+      '<div id="rp-cats"></div>',
+      '<div id="rp-grid"></div>',
+    '</div>'
+  ].join("");
   document.body.appendChild(el);
-  document.addEventListener("click", function(e){
-    if(e.target.closest("#react-picker")) return;
-    el.style.display="none"; reactPickerKey=null;
+
+  var REACT_EMOJIS = {
+    "😀 Smileys":["😀","😁","😂","🤣","🥲","😃","😄","😅","😆","😉","😊","😋","😎","😍","🥰","😘","😗","😙","😚","🙂","🤗","🤩","🤔","🤨","😐","😑","😶","🙄","😏","😣","😥","😮","😯","😪","😫","🥱","😴","😛","😜","😝","🤤","😒","😓","😔","😕","🙃","🤑","😲","🙁","😖","😞","😟","😤","😢","😭","😦","😧","😨","😩","🤯","😬","😰","😱","🥵","🥶","😳","🤪","😵","🥴","😠","😡","🤬","😷","🤒","🤕","🤢","🤮","🤧","😇","🥳","🥺","😈","👿","💀","☠️","👻","👽","🤖","💩","😺","😸","😹","😻","😼","😽","🙀","😿","😾"],
+    "👋 Hands":["👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","🫵","🫰","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","🫶","👏","🙌","🤲","🙏","💅","🤳","💪","🦾","👀","👅","👄","🫦","💋"],
+    "❤️ Hearts":["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","❤️‍🔥","❤️‍🩹","💔","❣️","💕","💞","💓","💗","💖","💘","💝","💟","🫀","💌","🌹","🌷","💐","🌸","🎀","🎁","🎊","🎉","🎈","✨","💫","⭐","🌟","🌠"],
+    "🎉 Hype":["🎉","🎊","🎈","🥳","🏆","🥇","🎯","🔥","💯","✅","👑","💎","⚡","🌈","🚀","💥","🤩","😍","🙌","👏","🫶","💪","🤜","👊","🤟","🤘","😎","🥵","🤯","😱","🫠","🤣","💀","☠️","💩"],
+    "🐶 Animals":["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐒","🦆","🦅","🦉","🦇","🐺","🦄","🐝","🦋","🐌","🐞","🐜","🐢","🐍","🦎","🐙","🦑","🐬","🐳","🦈","🐊","🐅","🐆","🦓","🦍","🐘","🦒","🦘","🐕","🐈","🐓","🦜","🦩","🦢"],
+    "🍎 Food":["🍎","🍊","🍋","🍇","🍓","🫐","🍒","🍑","🥭","🍍","🥥","🥝","🍅","🥑","🌽","🌶️","🍕","🍔","🍟","🌭","🍿","🍳","🥞","🍗","🍖","🍜","🍝","🍣","🍱","🍛","🍞","🥐","🧁","🍰","🎂","🍮","🍭","🍬","🍫","🍩","🍪","☕","🍵","🥤","🍺","🍻","🥂","🍷","🥃","🍸","🍹","🍾"]
+  };
+
+  var cats = Object.keys(REACT_EMOJIS);
+  var currentCat = 0;
+  var catsEl = el.querySelector("#rp-cats");
+  var gridEl = el.querySelector("#rp-grid");
+  var searchEl = el.querySelector("#rp-search");
+
+  function renderCat(i, filter){
+    currentCat = i;
+    catsEl.querySelectorAll(".rp-cat").forEach(function(b,j){ b.classList.toggle("active",j===i); });
+    gridEl.innerHTML = "";
+    var list = filter ? [] : REACT_EMOJIS[cats[i]];
+    if(filter){
+      cats.forEach(function(c){ REACT_EMOJIS[c].forEach(function(e){ if(e.includes(filter)||c.toLowerCase().includes(filter)) list.push(e); }); });
+    }
+    list.forEach(function(em){
+      var s = document.createElement("span");
+      s.className = "rp-emoji";
+      s.textContent = em;
+      s.addEventListener("click", function(e){
+        e.stopPropagation();
+        if(!reactPickerKey || !currentRoom) return;
+        var path = "reactions/"+currentRoom+"/"+reactPickerKey+"/"+me.username;
+        db.ref(path).once("value", function(snap){
+          if(snap.val()===em) db.ref(path).remove();
+          else db.ref(path).set(em);
+        });
+        closeReactPicker();
+      });
+      gridEl.appendChild(s);
+    });
+  }
+
+  // Category tabs
+  cats.forEach(function(cat, i){
+    var b = document.createElement("button");
+    b.className = "rp-cat" + (i===0?" active":"");
+    b.textContent = cat.split(" ")[0];
+    b.addEventListener("click", function(e){ e.stopPropagation(); renderCat(i); });
+    catsEl.appendChild(b);
   });
+  renderCat(0);
+
+  // Search
+  searchEl.addEventListener("input", function(e){
+    e.stopPropagation();
+    var q = this.value.trim().toLowerCase();
+    if(q) renderCat(currentCat, q);
+    else renderCat(currentCat);
+  });
+  searchEl.addEventListener("click", function(e){ e.stopPropagation(); });
+
+  // Close on overlay click
+  el.querySelector("#rp-overlay").addEventListener("click", closeReactPicker);
+
   return el;
 })();
 
+function openReactPicker(key){
+  reactPickerKey = key;
+  reactPickerEl.style.display = "block";
+  document.getElementById("rp-search").value = "";
+  // small delay so animation feels smooth
+  setTimeout(function(){
+    reactPickerEl.querySelector("#rp-sheet").style.transform = "translateY(0)";
+  }, 10);
+}
+
+function closeReactPicker(){
+  reactPickerEl.querySelector("#rp-sheet").style.transform = "translateY(100%)";
+  setTimeout(function(){ reactPickerEl.style.display="none"; reactPickerKey=null; }, 280);
+}
+
 function showReactPicker(e, key){
   e.stopPropagation();
-  reactPickerKey = key;
-  var rect = e.target.getBoundingClientRect();
-  var top  = rect.top - 10;
-  var left = rect.left;
-  if(top - 120 < 0) top = rect.bottom + 10;
-  else top = top - 120;
-  left = Math.min(left, window.innerWidth - 290);
-  reactPickerEl.style.top  = Math.max(8, top)+"px";
-  reactPickerEl.style.left = Math.max(8, left)+"px";
-  reactPickerEl.style.display = "block";
+  openReactPicker(key);
 }
 
 function renderReactions(key, msgReacts, bubble){
@@ -1976,6 +2207,65 @@ function extractFirstEmoji(text){
   } catch(e){
     var m = text.match(/\p{Emoji_Presentation}/u);
     return m ? m[0] : text[0];
+  }
+}
+
+
+// ── Insert text at cursor in contenteditable ─────────────────────────────────
+var savedRange = null;
+
+// Continuously track cursor position in msg-input
+window.addEventListener("load", function(){
+  var inp = document.getElementById("msg-input");
+  if(!inp) return;
+  ["keyup","mouseup","touchend","selectionchange"].forEach(function(ev){
+    (ev === "selectionchange" ? document : inp).addEventListener(ev, function(){
+      var sel = window.getSelection();
+      if(sel && sel.rangeCount && inp.contains(sel.anchorNode)){
+        savedRange = sel.getRangeAt(0).cloneRange();
+      }
+    });
+  });
+});
+
+function insertAtCursor(text){
+  var inp = document.getElementById("msg-input");
+
+  // Restore saved cursor position
+  if(savedRange){
+    inp.focus();
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedRange);
+
+    var range = sel.getRangeAt(0);
+    // Make sure range is inside inp
+    if(!inp.contains(range.commonAncestorContainer)){
+      // Fallback: append to end
+      range = document.createRange();
+      range.selectNodeContents(inp);
+      range.collapse(false);
+    }
+    range.deleteContents();
+    var node = document.createTextNode(text);
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    savedRange = range.cloneRange();
+  } else {
+    // No saved range — append to end
+    inp.focus();
+    var node2 = document.createTextNode(text);
+    inp.appendChild(node2);
+    var r = document.createRange();
+    r.setStartAfter(node2);
+    r.collapse(true);
+    var s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+    savedRange = r.cloneRange();
   }
 }
 
