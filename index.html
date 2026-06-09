@@ -659,6 +659,18 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 .reaction-pill:active{ transform:scale(.88); }
 .reaction-pill.mine-reacted{ background:#1a3a5c; border-color:var(--accent); }
 .reaction-count{ font-size:10px; color:#aaa; font-weight:600; }
+
+/* ── Unread badge ── */
+.unread-badge{
+  min-width:18px;height:18px;
+  background:var(--accent);
+  color:#fff;font-size:11px;font-weight:700;
+  border-radius:50px;
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:0 4px;
+  flex-shrink:0;
+  margin-left:auto;
+}
 </style>
 </head>
 <body>
@@ -1035,6 +1047,7 @@ function bootApp(){
   $("user-av").style.background=aColor(me.displayName);
   $("user-display-name").textContent=me.displayName;
   initPresence();
+  window._roomFullyLoaded = true; // no room open yet, safe to count
   // Load saved rain toggle state
   db.ref("settings/"+me.username+"/rainEnabled").once("value", function(snap){
     var saved = snap.val();
@@ -1065,16 +1078,22 @@ function listenUsers(){
       item.innerHTML=
         '<div class="room-avatar" style="background:'+aColor(u.displayName)+'">'+initials(u.displayName)+'</div>'+
         '<div class="room-info">'+
-          '<span class="room-item-name">'+escHtml(u.displayName)+'</span>'+
-          '<span class="room-item-sub">@'+escHtml(u.username)+'</span>'+
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">'+
+            '<span class="room-item-name">'+escHtml(u.displayName)+'</span>'+
+            '<span class="unread-badge" id="badge-'+escHtml(u.username)+'" style="display:none;"></span>'+
+          '</div>'+
+          '<span class="room-item-sub" id="sub-'+escHtml(u.username)+'">@'+escHtml(u.username)+'</span>'+
         '</div>';
       (function(uname,dname){
         item.addEventListener("click",function(){openRoom(uname,dname);});
         listenPresence(uname);
+        listenUnread(uname, item);
       })(u.username,u.displayName);
       list.appendChild(item);
     });
     if(!found) list.innerHTML='<div class="empty-state"><div class="empty-icon">👤</div><span>No other users yet.<br>Ask a friend to register!</span></div>';
+    // Start unread listeners after contacts are rendered in DOM
+    startUnreadListeners();
   });
 }
 
@@ -1085,7 +1104,10 @@ function openRoom(otherUser, otherName){
 
   currentRoom = rid(me.username, otherUser);
   currentOtherUser = otherUser;
+  window._roomFullyLoaded = false;
+  window._roomOpenedAt = Date.now();
   listenPresence(otherUser);
+  resetUnread(otherUser);
   // Also do a one-time fetch to update header immediately
   db.ref("presence/"+otherUser).once("value", function(s){
     var d = s.val() || {};
@@ -1195,8 +1217,14 @@ function openRoom(otherUser, otherName){
     row.appendChild(arrow);
     ml.appendChild(row);
     ml.scrollTop=ml.scrollHeight;
+    // Mark room as fully loaded after a short delay
+    clearTimeout(window._loadTimer);
+    window._loadTimer = setTimeout(function(){ window._roomFullyLoaded = true; }, 1500);
     var rOn = document.getElementById('rain-toggle') && document.getElementById('rain-toggle').checked;
     if(!mine && currentRoom){ markSeen(currentRoom); }
+    if(!mine && msg.ts && window._roomOpenedAt && msg.ts > window._roomOpenedAt - 3000){
+      if(currentOtherUser !== msg.from){ incrementUnread(msg.from); }
+    }
     // Apply cached seen state so ticks are correct immediately on load
     if(mine && msg.ts){
       (function(r, msgTs){
@@ -2058,6 +2086,77 @@ var rainToggleBtn = { addEventListener: function(){} };
 
 
 
+
+// ── Unread message count ──────────────────────────────────────────────────────
+var unreadListeners = {};
+
+function listenUnread(otherUser, roomItem){
+  if(!me) return;
+  var roomKey = rid(me.username, otherUser);
+  if(unreadListeners[roomKey]) db.ref("unread/"+roomKey+"/"+me.username).off("value", unreadListeners[roomKey]);
+
+  unreadListeners[roomKey] = db.ref("unread/"+roomKey+"/"+me.username).on("value", function(snap){
+    var count = parseInt(snap.val()) || 0;
+    console.log("UNREAD COUNT for", otherUser, "=", count);
+    var badge = document.getElementById("badge-"+otherUser);
+    console.log("badge element:", badge);
+    if(!badge) return;
+    if(count > 0){
+      badge.textContent = count > 99 ? "99+" : count;
+      badge.style.display = "inline-flex";
+    } else {
+      badge.style.display = "none";
+    }
+  });
+}
+
+function resetUnread(otherUser){
+  if(!me || !currentRoom) return;
+  db.ref("unread/"+currentRoom+"/"+me.username).set(0);
+}
+
+function incrementUnread(otherUser){
+  if(!me || !otherUser) return;
+  // Only increment if this chat is NOT currently open
+  if(currentOtherUser === otherUser) return;
+  var roomKey = rid(me.username, otherUser);
+  db.ref("unread/"+roomKey+"/"+me.username).transaction(function(val){
+    return (val || 0) + 1;
+  });
+}
+
+
+// ── Global new-message listeners for unread counts ───────────────────────────
+var unreadMsgListeners = {};
+
+function startUnreadListeners(){
+  var items = document.querySelectorAll(".room-item[data-uid]");
+  console.log("startUnreadListeners: found", items.length, "contacts");
+  items.forEach(function(item){
+    var otherUser = item.dataset.uid;
+    var roomKey   = rid(me.username, otherUser);
+    if(unreadMsgListeners[roomKey]){
+      console.log("already listening for", otherUser);
+      return;
+    }
+    var listenFrom = Date.now();
+    console.log("listening for new msgs from", otherUser, "from ts:", listenFrom);
+    // Use limitToLast(1) first to avoid index warning, then check ts manually
+    unreadMsgListeners[roomKey] = db.ref("messages/"+roomKey)
+      .limitToLast(20)
+      .on("child_added", function(snap){
+        var msg = snap.val();
+        if(!msg) return;
+        // Only count messages that arrived AFTER we started listening
+        if(!msg.ts || msg.ts < listenFrom) return;
+        if(msg.from === me.username) return;        // skip own
+        if(currentOtherUser === otherUser) return;  // skip if chat open
+        console.log("INCREMENTING unread for", otherUser, "msg.ts:", msg.ts, "listenFrom:", listenFrom);
+        db.ref("unread/"+roomKey+"/"+me.username).transaction(function(v){ return (v||0)+1; });
+      });
+  });
+}
+
 // ── Presence (online/offline) ─────────────────────────────────────────────────
 var presenceListeners = {};
 
@@ -2177,6 +2276,8 @@ function markSeen(roomId){
 function listenSeen(roomId, otherUser){
   if(seenRef && seenCbFn){ seenRef.off("value", seenCbFn); seenRef=null; }
   stopPresenceListeners();
+  Object.keys(unreadListeners).forEach(function(r){ db.ref("unread/"+r+"/"+me.username).off("value", unreadListeners[r]); });
+  unreadListeners = {};
   if(me) db.ref("presence/"+me.username).update({ online:false, lastSeen:Date.now() });
   // Init cache
   if(!window._seenCache) window._seenCache = {};
