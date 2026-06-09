@@ -1092,8 +1092,7 @@ function listenUsers(){
       list.appendChild(item);
     });
     if(!found) list.innerHTML='<div class="empty-state"><div class="empty-icon">👤</div><span>No other users yet.<br>Ask a friend to register!</span></div>';
-    // Start unread listeners after contacts are rendered in DOM
-    startUnreadListeners();
+
   });
 }
 
@@ -1222,9 +1221,7 @@ function openRoom(otherUser, otherName){
     window._loadTimer = setTimeout(function(){ window._roomFullyLoaded = true; }, 1500);
     var rOn = document.getElementById('rain-toggle') && document.getElementById('rain-toggle').checked;
     if(!mine && currentRoom){ markSeen(currentRoom); }
-    if(!mine && msg.ts && window._roomOpenedAt && msg.ts > window._roomOpenedAt - 3000){
-      if(currentOtherUser !== msg.from){ incrementUnread(msg.from); }
-    }
+
     // Apply cached seen state so ticks are correct immediately on load
     if(mine && msg.ts){
       (function(r, msgTs){
@@ -1290,6 +1287,8 @@ function sendMessage(){
   var msgData = {from:me.username, text:text, ts:Date.now()};
   if(replyingTo) msgData.replyTo = { key:replyingTo.key, from:replyingTo.from, text:replyingTo.text };
   db.ref("messages/"+currentRoom).push(msgData);
+  // Increment unread count for the recipient (works even when they're offline)
+  db.ref("unread/"+currentRoom+"/"+currentOtherUser).transaction(function(v){ return (v||0)+1; });
   replyingTo = null;
   document.getElementById("reply-bar").classList.remove("show");
   // rain only triggered from emoji picker click, not from sending messages
@@ -2097,9 +2096,7 @@ function listenUnread(otherUser, roomItem){
 
   unreadListeners[roomKey] = db.ref("unread/"+roomKey+"/"+me.username).on("value", function(snap){
     var count = parseInt(snap.val()) || 0;
-    console.log("UNREAD COUNT for", otherUser, "=", count);
     var badge = document.getElementById("badge-"+otherUser);
-    console.log("badge element:", badge);
     if(!badge) return;
     if(count > 0){
       badge.textContent = count > 99 ? "99+" : count;
@@ -2115,47 +2112,10 @@ function resetUnread(otherUser){
   db.ref("unread/"+currentRoom+"/"+me.username).set(0);
 }
 
-function incrementUnread(otherUser){
-  if(!me || !otherUser) return;
-  // Only increment if this chat is NOT currently open
-  if(currentOtherUser === otherUser) return;
-  var roomKey = rid(me.username, otherUser);
-  db.ref("unread/"+roomKey+"/"+me.username).transaction(function(val){
-    return (val || 0) + 1;
-  });
-}
 
 
-// ── Global new-message listeners for unread counts ───────────────────────────
-var unreadMsgListeners = {};
 
-function startUnreadListeners(){
-  var items = document.querySelectorAll(".room-item[data-uid]");
-  console.log("startUnreadListeners: found", items.length, "contacts");
-  items.forEach(function(item){
-    var otherUser = item.dataset.uid;
-    var roomKey   = rid(me.username, otherUser);
-    if(unreadMsgListeners[roomKey]){
-      console.log("already listening for", otherUser);
-      return;
-    }
-    var listenFrom = Date.now();
-    console.log("listening for new msgs from", otherUser, "from ts:", listenFrom);
-    // Use limitToLast(1) first to avoid index warning, then check ts manually
-    unreadMsgListeners[roomKey] = db.ref("messages/"+roomKey)
-      .limitToLast(20)
-      .on("child_added", function(snap){
-        var msg = snap.val();
-        if(!msg) return;
-        // Only count messages that arrived AFTER we started listening
-        if(!msg.ts || msg.ts < listenFrom) return;
-        if(msg.from === me.username) return;        // skip own
-        if(currentOtherUser === otherUser) return;  // skip if chat open
-        console.log("INCREMENTING unread for", otherUser, "msg.ts:", msg.ts, "listenFrom:", listenFrom);
-        db.ref("unread/"+roomKey+"/"+me.username).transaction(function(v){ return (v||0)+1; });
-      });
-  });
-}
+// unreadMsgListeners removed — unread now written by sender
 
 // ── Presence (online/offline) ─────────────────────────────────────────────────
 var presenceListeners = {};
