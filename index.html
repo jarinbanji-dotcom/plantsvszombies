@@ -1753,21 +1753,21 @@ function initPresence(){
   if(!me) return;
   var presRef = db.ref("presence/"+me.username);
 
-  // Use .info/connected — the only reliable way in Firebase RTDB
   db.ref(".info/connected").on("value", function(snap){
-    if(!snap.val()) return; // not connected yet
+    if(!snap.val()) return;
 
-    // Register onDisconnect FIRST, then set online
-    presRef.onDisconnect().update({ online: false, lastSeen: firebase.database.ServerValue.TIMESTAMP })
+    // onDisconnect: only set online=false and save lastSeen timestamp
+    presRef.onDisconnect().update({ online: false, lastSeen: Date.now() })
       .then(function(){
-        presRef.update({ online: true, lastSeen: firebase.database.ServerValue.TIMESTAMP });
+        // Set online=true, do NOT touch lastSeen (keep last offline time intact)
+        presRef.update({ online: true });
       });
   });
 
-  // Keep-alive: re-confirm online every 30s in case of false disconnects
+  // Keep-alive every 25s — only update online flag, never lastSeen
   setInterval(function(){
-    if(me) db.ref("presence/"+me.username).update({ online: true, lastSeen: Date.now() });
-  }, 30000);
+    if(me) db.ref("presence/"+me.username+"/online").set(true);
+  }, 25000);
 }
 
 function listenPresence(username){
@@ -1788,10 +1788,13 @@ function listenPresence(username){
     var sub = document.getElementById("sub-"+username);
     if(sub){
       if(isOnline){
-        sub.textContent = "online";
+        sub.textContent = "● online";
         sub.style.color = "#22c55e";
-      } else if(data.lastSeen){
+      } else if(data.lastSeen && (Date.now()-data.lastSeen) > 10000){
         sub.textContent = "last seen "+fmtLastSeen(data.lastSeen);
+        sub.style.color = "var(--text-muted)";
+      } else if(data.lastSeen){
+        sub.textContent = "last seen just now";
         sub.style.color = "var(--text-muted)";
       } else {
         sub.textContent = "@"+username;
@@ -1808,9 +1811,22 @@ function updatePresenceHeader(username, isOnline, lastSeenTs){
   if(currentOtherUser !== username) return;
   var status = document.getElementById("room-status");
   if(!status) return;
-  status.textContent = isOnline ? "● online" : (lastSeenTs ? "last seen "+fmtLastSeen(lastSeenTs) : "offline");
-  status.style.color = isOnline ? "#22c55e" : "var(--text-muted)";
-  console.log("header updated:", username, isOnline);
+  // If online, ALWAYS show online regardless of lastSeen
+  if(isOnline){
+    status.textContent = "● online";
+    status.style.color = "#22c55e";
+  } else {
+    // Offline — show last seen only if it's older than 10 seconds (avoid "just now" flicker)
+    var age = lastSeenTs ? (Date.now() - lastSeenTs) : 999999;
+    if(lastSeenTs && age > 10000){
+      status.textContent = "last seen "+fmtLastSeen(lastSeenTs);
+    } else if(lastSeenTs){
+      status.textContent = "last seen just now";
+    } else {
+      status.textContent = "offline";
+    }
+    status.style.color = "var(--text-muted)";
+  }
 }
 
 function fmtLastSeen(ts){
