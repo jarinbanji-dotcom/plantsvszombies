@@ -1752,20 +1752,16 @@ document.getElementById("messages-list").addEventListener("scroll", function(){
 
 // ── Rain listener — fires when other person triggers rain
 
-var rainRef = null, rainCbFn = null, lastRainTs = 0;
+var rainRef = null, rainCbFn = null;
 function listenRain(roomId){
-  if(rainRef && rainCbFn){ rainRef.off("child_added", rainCbFn); }
-  if(seenRef && seenCbFn){ seenRef.off("value", seenCbFn); seenRef=null; }
-  rainRef = db.ref("rain/"+roomId).orderByChild("ts").limitToLast(1);
+  if(rainRef && rainCbFn){ rainRef.off("child_added", rainCbFn); rainRef=null; }
+  var listenAfter = Date.now();
+  rainRef = db.ref("rain/"+roomId).orderByChild("ts").startAt(listenAfter);
   rainCbFn = rainRef.on("child_added", function(snap){
     var data = snap.val();
-    if(!data) return;
-    // Don't replay old events or own events
-    if(data.ts <= lastRainTs) return;
-    lastRainTs = data.ts;
-    // Delete from Firebase immediately so it never replays
+    if(!data || data.ts < listenAfter) return;
     snap.ref.remove();
-    if(data.by === me.username) return; // sender already sees it locally
+    if(data.by === me.username) return;
     triggerRain(data.emoji, 100, 3000);
   });
 }
