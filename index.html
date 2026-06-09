@@ -182,11 +182,12 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   flex:1;min-height:40px;max-height:110px;
   padding:9px 13px;
   background:var(--bg-input);border:1px solid var(--border);border-radius:20px;
-  color:var(--text-primary);font-size:14px;resize:none;outline:none;
+  color:var(--text-primary);font-size:14px;outline:none;
   font-family:var(--font);line-height:1.5;transition:border-color .2s;overflow-y:auto;
+  white-space:pre-wrap;word-break:break-word;cursor:text;
 }
 #msg-input:focus{border-color:var(--accent);}
-#msg-input::placeholder{color:var(--text-muted);}
+#msg-input:empty::before{content:attr(data-placeholder);color:var(--text-muted);pointer-events:none;}
 .emoji-btn,.send-btn{width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,transform .1s;}
 .emoji-btn{background:var(--bg-input);color:var(--text-secondary);font-size:18px;}
 .emoji-btn:hover{background:var(--bg-hover);color:var(--text-primary);}
@@ -295,6 +296,46 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 .typing-dots span:nth-child(2){animation-delay:.2s;}
 .typing-dots span:nth-child(3){animation-delay:.4s;}
 @keyframes tdot{0%,80%,100%{transform:scale(.7);opacity:.4;}40%{transform:scale(1);opacity:1;}}
+
+/* ── GIF button & panel ── */
+.gif-btn{background:var(--bg-input);color:var(--text-secondary);font-size:11px;font-weight:700;font-family:var(--font);letter-spacing:.5px;border-radius:20px;border:none;padding:0 10px;height:40px;cursor:pointer;transition:background .15s;flex-shrink:0;}
+.gif-btn:hover{background:var(--bg-hover);color:var(--text-primary);}
+
+#gif-panel{
+  position:absolute;bottom:64px;left:58px;
+  width:300px;background:var(--bg-sidebar);
+  border:1px solid var(--border);border-radius:12px;
+  padding:10px;display:none;
+  box-shadow:0 8px 30px rgba(0,0,0,.5);
+  z-index:51;
+}
+#gif-panel.open{display:flex;flex-direction:column;gap:8px;}
+.gif-search-row{display:flex;gap:6px;}
+#gif-search-input{
+  flex:1;padding:8px 12px;background:var(--bg-input);
+  border:1px solid var(--border);border-radius:20px;
+  color:var(--text-primary);font-size:13px;outline:none;font-family:var(--font);
+}
+#gif-search-input:focus{border-color:var(--accent);}
+#gif-search-input::placeholder{color:var(--text-muted);}
+.gif-search-btn{padding:8px 12px;background:var(--accent);border:none;border-radius:20px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);}
+.gif-search-btn:hover{background:var(--accent-hover);}
+#gif-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:4px;
+  max-height:220px;overflow-y:auto;
+}
+#gif-grid::-webkit-scrollbar{width:3px;}
+#gif-grid::-webkit-scrollbar-thumb{background:var(--border);}
+.gif-item{width:100%;height:90px;object-fit:cover;border-radius:7px;cursor:pointer;transition:opacity .15s;}
+.gif-item:hover{opacity:.8;}
+.gif-loading{text-align:center;color:var(--text-muted);font-size:12.5px;padding:20px 0;}
+
+/* GIF message image */
+.msg-gif{max-width:220px;width:100%;border-radius:12px;display:block;cursor:pointer;}
+
+@media(max-width:680px){
+  #gif-panel{left:6px;width:calc(100vw - 12px);}
+}
 </style>
 </head>
 <body>
@@ -399,8 +440,18 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
           <div class="emoji-grid" id="emoji-grid"></div>
         </div>
 
+        <!-- GIF panel -->
+        <div id="gif-panel">
+          <div class="gif-search-row">
+            <input id="gif-search-input" placeholder="Search GIFs…" />
+            <button class="gif-search-btn" id="gif-search-btn">Search</button>
+          </div>
+          <div id="gif-grid"><div class="gif-loading">Search for GIFs above ☝️</div></div>
+        </div>
+
         <button class="emoji-btn" id="btn-emoji" title="Emoji">😊</button>
-        <textarea id="msg-input" rows="1" placeholder="Type a message…"></textarea>
+        <button class="gif-btn"   id="btn-gif"   title="GIF">GIF</button>
+        <div id="msg-input" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Type a message…"></div>
         <button class="send-btn" id="btn-send">➤</button>
       </div>
     </div>
@@ -482,10 +533,18 @@ function aColor(n){
       s.className="e"; s.textContent=em;
       s.onclick=function(){
         var inp=$("msg-input");
-        inp.value+=em;
         inp.focus();
-        inp.style.height="auto";
-        inp.style.height=inp.scrollHeight+"px";
+        // Insert at cursor position in contenteditable
+        var sel=window.getSelection();
+        if(sel.rangeCount){
+          var range=sel.getRangeAt(0);
+          range.deleteContents();
+          range.insertNode(document.createTextNode(em));
+          range.collapse(false);
+          sel.removeAllRanges(); sel.addRange(range);
+        } else {
+          inp.innerText+=em;
+        }
       };
       grid.appendChild(s);
     });
@@ -655,9 +714,12 @@ function openRoom(otherUser, otherName){
     var mine=msg.from===me.username;
     var row=document.createElement("div");
     row.className="msg-row "+(mine?"mine":"theirs");
+    var bubbleContent = msg.type === "gif"
+      ? '<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>'
+      : '<span style="display:block;padding-right:'+(msg.type==="gif"?"0":"44px")+';">'+escHtml(msg.text)+'</span>';
     row.innerHTML=
-      '<div class="bubble">'+
-        '<span style="display:block;padding-right:44px;">'+escHtml(msg.text)+'</span>'+
+      '<div class="bubble" style="'+(msg.type==="gif"?"padding:4px 4px 20px;":"")+'">'+
+        bubbleContent+
         '<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick">✓✓</span>':'')+'</span>'+
       '</div>';
     // Delete: long-press (mobile) or right-click (desktop) — only own messages
@@ -689,9 +751,9 @@ function openRoom(otherUser, otherName){
 function sendMessage(){
   if(!currentRoom||!me) return;
   var inp=$("msg-input");
-  var text=inp.value.trim();
+  var text=inp.innerText.trim();
   if(!text) return;
-  inp.value=""; inp.style.height="auto";
+  inp.innerText=""; inp.style.height="auto";
   $("emoji-picker").classList.remove("open");
   clearTimeout(typingTimeout);
   setTyping(false);
@@ -701,8 +763,15 @@ $("btn-send").addEventListener("click",sendMessage);
 $("msg-input").addEventListener("keydown",function(e){
   if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}
 });
+// Typing indicator still works
 $("msg-input").addEventListener("input",function(){
-  this.style.height="auto"; this.style.height=this.scrollHeight+"px";
+  if(!currentRoom) return;
+  setTyping(true);
+  clearTimeout(typingTimeout);
+  typingTimeout=setTimeout(function(){setTyping(false);},2000);
+});
+$("msg-input").addEventListener("input",function(){
+  // contenteditable auto-sizes naturally, just cap it
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -771,16 +840,133 @@ function watchTyping(otherUsername){
 }
 
 // Attach typing events to input
-document.getElementById("msg-input").addEventListener("input", function(){
-  if(!currentRoom) return;
-  setTyping(true);
-  clearTimeout(typingTimeout);
-  typingTimeout = setTimeout(function(){ setTyping(false); }, 2000);
-});
-
+// typing handled in keydown section above
 document.getElementById("msg-input").addEventListener("blur", function(){
   clearTimeout(typingTimeout);
   setTyping(false);
+});
+
+
+// ── GIF panel ─────────────────────────────────────────────────────────────────
+// Uses allorigins.win CORS proxy so file:// local pages can reach GIPHY
+var GIPHY_KEY = "dc6zaTOxFJmzC";
+
+function searchGifs(query){
+  var grid = document.getElementById("gif-grid");
+  grid.innerHTML = '<div class="gif-loading">Loading…</div>';
+
+  var apiUrl = query
+    ? "https://api.giphy.com/v1/gifs/search?api_key="+GIPHY_KEY+"&q="+encodeURIComponent(query)+"&limit=16&rating=g&lang=en"
+    : "https://api.giphy.com/v1/gifs/trending?api_key="+GIPHY_KEY+"&limit=16&rating=g";
+
+  // Wrap with CORS proxy so file:// origin is accepted
+  var proxied = "https://api.allorigins.win/get?url=" + encodeURIComponent(apiUrl);
+
+  fetch(proxied)
+    .then(function(r){ return r.json(); })
+    .then(function(wrapper){
+      var data = JSON.parse(wrapper.contents);
+      grid.innerHTML="";
+      if(!data.data||!data.data.length){
+        grid.innerHTML='<div class="gif-loading">No GIFs found</div>'; return;
+      }
+      data.data.forEach(function(gif){
+        var preview = gif.images.fixed_height_small.url;
+        var full    = gif.images.original.url;
+        var img = document.createElement("img");
+        img.className = "gif-item";
+        img.src = preview;
+        img.alt = gif.title || "GIF";
+        img.loading = "lazy";
+        img.addEventListener("click", function(){
+          sendGif(full);
+          document.getElementById("gif-panel").classList.remove("open");
+        });
+        grid.appendChild(img);
+      });
+    })
+    .catch(function(e){
+      // Fallback: try direct fetch (works if hosted on a real domain)
+      fetch(apiUrl)
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          grid.innerHTML="";
+          if(!data.data||!data.data.length){ grid.innerHTML='<div class="gif-loading">No GIFs found</div>'; return; }
+          data.data.forEach(function(gif){
+            var preview = gif.images.fixed_height_small.url;
+            var full    = gif.images.original.url;
+            var img = document.createElement("img");
+            img.className = "gif-item";
+            img.src = preview;
+            img.alt = gif.title||"GIF";
+            img.loading = "lazy";
+            img.addEventListener("click", function(){
+              sendGif(full);
+              document.getElementById("gif-panel").classList.remove("open");
+            });
+            grid.appendChild(img);
+          });
+        })
+        .catch(function(){
+          grid.innerHTML='<div class="gif-loading" style="font-size:12px;padding:16px 8px;">⚠️ GIF search requires the file to be hosted on a server.<br><br>To enable GIFs, upload the HTML file to any web host (GitHub Pages, Netlify etc.) or run a local server.</div>';
+        });
+      console.error("GIF proxy error:", e);
+    });
+}
+
+function sendGif(url){
+  if(!currentRoom||!me) return;
+  db.ref("messages/"+currentRoom).push({from:me.username, type:"gif", url:url, ts:Date.now()});
+}
+
+// GIF button toggle
+document.getElementById("btn-gif").addEventListener("click", function(e){
+  e.stopPropagation();
+  var panel = document.getElementById("gif-panel");
+  var wasOpen = panel.classList.contains("open");
+  document.getElementById("emoji-picker").classList.remove("open");
+  if(!wasOpen){
+    panel.classList.add("open");
+    searchGifs(""); // load trending on open
+  } else {
+    panel.classList.remove("open");
+  }
+});
+
+// GIF search
+document.getElementById("gif-search-btn").addEventListener("click", function(){
+  searchGifs(document.getElementById("gif-search-input").value.trim());
+});
+document.getElementById("gif-search-input").addEventListener("keydown", function(e){
+  if(e.key==="Enter") searchGifs(this.value.trim());
+});
+
+// Close GIF panel on outside click
+document.addEventListener("click", function(e){
+  var panel = document.getElementById("gif-panel");
+  if(!panel.contains(e.target) && e.target!==document.getElementById("btn-gif"))
+    panel.classList.remove("open");
+});
+
+// ── Paste / keyboard GIF support (Gboard etc.) ─────────────────────────────
+document.getElementById("msg-input").addEventListener("paste", function(e){
+  var items = (e.clipboardData||e.originalEvent.clipboardData||{items:[]}).items;
+  for(var i=0;i<items.length;i++){
+    if(items[i].type.indexOf("image")===0){
+      e.preventDefault();
+      var file = items[i].getAsFile();
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        sendGif(ev.target.result);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+  }
+  // Let normal text paste go through but strip HTML
+  e.preventDefault();
+  var text = (e.clipboardData||e.originalEvent.clipboardData).getData("text/plain");
+  document.execCommand("insertText", false, text);
 });
 
 // ── Delete entire chat history ────────────────────────────────────────────────
