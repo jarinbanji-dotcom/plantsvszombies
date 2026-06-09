@@ -1753,21 +1753,27 @@ function initPresence(){
   if(!me) return;
   var presRef = db.ref("presence/"+me.username);
 
+  // Just set online=true immediately on login — simple and reliable
+  presRef.update({ online: true });
+
+  // Register onDisconnect — Firebase server runs this when connection truly drops
+  presRef.onDisconnect().update({ online: false, lastSeen: Date.now() });
+
+  // Keep-alive every 20s to fight false disconnects on file:// 
+  var keepAlive = setInterval(function(){
+    if(!me){ clearInterval(keepAlive); return; }
+    presRef.update({ online: true });
+  }, 20000);
+
+  // Only use .info/connected to RE-SET online after a real reconnect
   db.ref(".info/connected").on("value", function(snap){
-    if(!snap.val()) return;
-
-    // onDisconnect: only set online=false and save lastSeen timestamp
-    presRef.onDisconnect().update({ online: false, lastSeen: Date.now() })
-      .then(function(){
-        // Set online=true, do NOT touch lastSeen (keep last offline time intact)
-        presRef.update({ online: true });
-      });
+    if(snap.val() === true){
+      // Reconnected — re-register onDisconnect and confirm online
+      presRef.onDisconnect().update({ online: false, lastSeen: Date.now() });
+      presRef.update({ online: true });
+    }
+    // Do NOT set offline here — onDisconnect handles that server-side
   });
-
-  // Keep-alive every 25s — only update online flag, never lastSeen
-  setInterval(function(){
-    if(me) db.ref("presence/"+me.username+"/online").set(true);
-  }, 25000);
 }
 
 function listenPresence(username){
