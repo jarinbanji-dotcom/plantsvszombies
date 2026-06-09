@@ -508,6 +508,16 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 @keyframes wiggle{0%{transform:rotate(0)}25%{transform:rotate(-15deg)}75%{transform:rotate(15deg)}100%{transform:rotate(0)}}
 .emoji-rain-particle{position:fixed;pointer-events:none;z-index:999999;animation:emojifall linear forwards;user-select:none;will-change:transform,opacity;}
 @keyframes emojifall{0%{transform:translateY(-40px) scale(1);opacity:1;}70%{opacity:1;}100%{transform:translateY(110vh) scale(.8);opacity:0;}}
+
+/* Online presence dot */
+.room-avatar-wrap{position:relative;flex-shrink:0;}
+.presence-dot{
+  position:absolute;bottom:1px;right:1px;
+  width:10px;height:10px;border-radius:50%;
+  border:2px solid var(--bg-sidebar);
+  background:#6b7280;transition:background .3s;
+}
+.presence-dot.online{background:#22c55e;}
 </style>
 </head>
 <body>
@@ -708,6 +718,7 @@ var EMOJIS = {
 // ── State ─────────────────────────────────────────────────────────────────────
 var me = null;
 var currentRoom = null;
+var currentOtherUser = null;
 var msgRef = null;
 var msgCb  = null;
 var usersRef = null;
@@ -875,6 +886,7 @@ function bootApp(){
   $("user-av").textContent=initials(me.displayName);
   $("user-av").style.background=aColor(me.displayName);
   $("user-display-name").textContent=me.displayName;
+  initPresence();
   // Load saved rain toggle state
   db.ref("settings/"+me.username+"/rainEnabled").once("value", function(snap){
     var saved = snap.val();
@@ -910,6 +922,7 @@ function listenUsers(){
         '</div>';
       (function(uname,dname){
         item.addEventListener("click",function(){openRoom(uname,dname);});
+        listenPresence(uname);
       })(u.username,u.displayName);
       list.appendChild(item);
     });
@@ -923,13 +936,22 @@ function openRoom(otherUser, otherName){
   if(msgRef && msgCb){ msgRef.off("child_added",msgCb); msgCb=null; }
 
   currentRoom = rid(me.username, otherUser);
+  currentOtherUser = otherUser;
+  listenPresence(otherUser);
+  // Also do a one-time fetch to update header immediately
+  db.ref("presence/"+otherUser).once("value", function(s){
+    var d = s.val() || {};
+    console.log("once fetch presence:", otherUser, d);
+    updatePresenceHeader(otherUser, !!d.online, d.lastSeen||0);
+  });
 
   document.querySelectorAll(".room-item").forEach(function(r){r.classList.remove("active");});
   var a=document.querySelector('.room-item[data-uid="'+otherUser+'"]');
   if(a) a.classList.add("active");
 
   $("room-name").textContent             = otherName;
-  $("room-status").textContent           = "@"+otherUser;
+  $("room-status").textContent           = "checking...";
+  $("room-status").style.color           = "var(--text-muted)";
   $("chat-av").textContent               = initials(otherName);
   $("chat-av").style.background          = aColor(otherName);
   $("chat-view-placeholder").style.display = "none";
@@ -1723,6 +1745,93 @@ var rainToggleBtn = { addEventListener: function(){} };
 // (toggle handled above via rain-toggle-wrap click)
 
 
+
+// ── Presence (online/offline) ─────────────────────────────────────────────────
+var presenceListeners = {};
+
+function initPresence(){
+  if(!me) return;
+  var presRef = db.ref("presence/"+me.username);
+
+  // Use .info/connected — the only reliable way in Firebase RTDB
+  db.ref(".info/connected").on("value", function(snap){
+    if(!snap.val()) return; // not connected yet
+
+    // Register onDisconnect FIRST, then set online
+    presRef.onDisconnect().update({ online: false, lastSeen: firebase.database.ServerValue.TIMESTAMP })
+      .then(function(){
+        presRef.update({ online: true, lastSeen: firebase.database.ServerValue.TIMESTAMP });
+      });
+  });
+
+  // Keep-alive: re-confirm online every 30s in case of false disconnects
+  setInterval(function(){
+    if(me) db.ref("presence/"+me.username).update({ online: true, lastSeen: Date.now() });
+  }, 30000);
+}
+
+function listenPresence(username){
+  // Remove old listener first
+  if(presenceListeners[username]){
+    db.ref("presence/"+username).off("value", presenceListeners[username]);
+    delete presenceListeners[username];
+  }
+  presenceListeners[username] = db.ref("presence/"+username).on("value", function(snap){
+    var data     = snap.val() || {};
+    var isOnline = !!data.online;
+
+    // Update sidebar dot
+    var dot = document.getElementById("dot-"+username);
+    if(dot) dot.classList.toggle("online", isOnline);
+
+    // Update sidebar sub-label
+    var sub = document.getElementById("sub-"+username);
+    if(sub){
+      if(isOnline){
+        sub.textContent = "online";
+        sub.style.color = "#22c55e";
+      } else if(data.lastSeen){
+        sub.textContent = "last seen "+fmtLastSeen(data.lastSeen);
+        sub.style.color = "var(--text-muted)";
+      } else {
+        sub.textContent = "@"+username;
+        sub.style.color = "var(--text-secondary)";
+      }
+    }
+
+    // ALWAYS update header regardless of currentOtherUser timing
+    updatePresenceHeader(username, isOnline, data.lastSeen);
+  });
+}
+
+function updatePresenceHeader(username, isOnline, lastSeenTs){
+  if(currentOtherUser !== username) return;
+  var status = document.getElementById("room-status");
+  if(!status) return;
+  status.textContent = isOnline ? "● online" : (lastSeenTs ? "last seen "+fmtLastSeen(lastSeenTs) : "offline");
+  status.style.color = isOnline ? "#22c55e" : "var(--text-muted)";
+  console.log("header updated:", username, isOnline);
+}
+
+function fmtLastSeen(ts){
+  var d   = new Date(ts);
+  var now = new Date();
+  var diff = Math.floor((now - d) / 1000);
+  if(diff < 60)  return "just now";
+  if(diff < 3600) return Math.floor(diff/60)+" min ago";
+  if(d.toDateString()===now.toDateString()) return "today at "+fmtTime(ts);
+  var yest = new Date(now); yest.setDate(now.getDate()-1);
+  if(d.toDateString()===yest.toDateString()) return "yesterday";
+  return d.toLocaleDateString([],{day:"numeric",month:"short"});
+}
+
+function stopPresenceListeners(){
+  Object.keys(presenceListeners).forEach(function(u){
+    db.ref("presence/"+u).off("value", presenceListeners[u]);
+  });
+  presenceListeners = {};
+}
+
 // ── Seen / Read receipts ─────────────────────────────────────────────────────
 var seenRef = null, seenCbFn = null;
 
@@ -1733,6 +1842,8 @@ function markSeen(roomId){
 
 function listenSeen(roomId, otherUser){
   if(seenRef && seenCbFn){ seenRef.off("value", seenCbFn); seenRef=null; }
+  stopPresenceListeners();
+  if(me) db.ref("presence/"+me.username).update({ online:false, lastSeen:Date.now() });
   // Init cache
   if(!window._seenCache) window._seenCache = {};
   // Fetch once immediately to populate cache before messages render
