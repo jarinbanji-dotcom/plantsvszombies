@@ -451,7 +451,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
         <button class="emoji-btn" id="btn-emoji" title="Emoji">😊</button>
         <button class="gif-btn"   id="btn-gif"   title="GIF">GIF</button>
-        <div id="msg-input" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Type a message…"></div>
+        <div id="msg-input" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Type a message…" inputmode="text"></div>
         <button class="send-btn" id="btn-send">➤</button>
       </div>
     </div>
@@ -948,25 +948,72 @@ document.addEventListener("click", function(e){
     panel.classList.remove("open");
 });
 
-// ── Paste / keyboard GIF support (Gboard etc.) ─────────────────────────────
-document.getElementById("msg-input").addEventListener("paste", function(e){
-  var items = (e.clipboardData||e.originalEvent.clipboardData||{items:[]}).items;
+// ── Paste / keyboard GIF support (Gboard, Samsung keyboard etc.) ────────────
+function handleImageData(dataTransfer){
+  if(!dataTransfer) return false;
+  var items = dataTransfer.items || [];
   for(var i=0;i<items.length;i++){
     if(items[i].type.indexOf("image")===0){
-      e.preventDefault();
       var file = items[i].getAsFile();
+      if(!file) continue;
       var reader = new FileReader();
-      reader.onload = function(ev){
-        sendGif(ev.target.result);
-      };
+      reader.onload = function(ev){ sendGif(ev.target.result); };
       reader.readAsDataURL(file);
+      return true;
+    }
+  }
+  // Also check files directly
+  var files = dataTransfer.files || [];
+  for(var j=0;j<files.length;j++){
+    if(files[j].type.indexOf("image")===0){
+      var reader2 = new FileReader();
+      reader2.onload = function(ev){ sendGif(ev.target.result); };
+      reader2.readAsDataURL(files[j]);
+      return true;
+    }
+  }
+  return false;
+}
+
+var msgInputEl = document.getElementById("msg-input");
+
+// Standard paste (desktop + some mobile)
+msgInputEl.addEventListener("paste", function(e){
+  var dt = e.clipboardData || e.originalEvent && e.originalEvent.clipboardData;
+  if(handleImageData(dt)){
+    e.preventDefault(); return;
+  }
+  // Plain text paste — strip HTML
+  e.preventDefault();
+  if(dt){
+    var text = dt.getData("text/plain");
+    document.execCommand("insertText", false, text);
+  }
+});
+
+// beforeinput — THIS is what Gboard/Samsung keyboard fires for GIF
+msgInputEl.addEventListener("beforeinput", function(e){
+  if(e.inputType === "insertFromPaste" || e.inputType === "insertReplacementText"){
+    if(handleImageData(e.dataTransfer)){
+      e.preventDefault(); return;
+    }
+  }
+});
+
+// input event dataTransfer fallback (some Android versions)
+msgInputEl.addEventListener("input", function(e){
+  if(e.inputType === "insertFromPaste" || e.inputType === "insertFromDrop"){
+    if(e.dataTransfer && handleImageData(e.dataTransfer)){
       return;
     }
   }
-  // Let normal text paste go through but strip HTML
-  e.preventDefault();
-  var text = (e.clipboardData||e.originalEvent.clipboardData).getData("text/plain");
-  document.execCommand("insertText", false, text);
+});
+
+// Drop support (drag & drop GIF from browser)
+msgInputEl.addEventListener("drop", function(e){
+  if(handleImageData(e.dataTransfer)){
+    e.preventDefault();
+  }
 });
 
 // ── Delete entire chat history ────────────────────────────────────────────────
