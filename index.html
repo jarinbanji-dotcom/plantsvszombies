@@ -755,7 +755,14 @@ function aColor(n){
           var rainOn = document.getElementById("rain-toggle") && document.getElementById("rain-toggle").checked;
           if(rainOn){
             triggerRain(emoji, 100, 3000);
-            // Flash the emoji picker briefly
+            // Save rain event to Firebase so other person sees it too
+            if(currentRoom){
+              db.ref("rain/"+currentRoom).push({
+                emoji: emoji,
+                by:    me.username,
+                ts:    Date.now()
+              });
+            }
             var picker = document.getElementById("emoji-picker");
             picker.style.transform = "scale(1.04)";
             setTimeout(function(){ picker.style.transform = ""; }, 200);
@@ -923,6 +930,7 @@ function openRoom(otherUser, otherName){
   replyingTo = null;
   watchTyping(otherUser);
   listenReactions(currentRoom);
+  listenRain(currentRoom);
 
   // Mobile slide
   $("sidebar").classList.remove("open");
@@ -1689,8 +1697,26 @@ var rainToggleBtn = { addEventListener: function(){} };
 // (toggle handled above via rain-toggle-wrap click)
 
 
+// Rain listener — fires when other person triggers rain
+var rainRef = null, rainCbFn = null, lastRainTs = 0;
+function listenRain(roomId){
+  if(rainRef && rainCbFn){ rainRef.off("child_added", rainCbFn); }
+  rainRef = db.ref("rain/"+roomId).orderByChild("ts").limitToLast(1);
+  rainCbFn = rainRef.on("child_added", function(snap){
+    var data = snap.val();
+    if(!data) return;
+    // Don't replay old events or own events
+    if(data.ts <= lastRainTs) return;
+    lastRainTs = data.ts;
+    if(data.by === me.username) return; // sender already sees it locally
+    triggerRain(data.emoji, 100, 3000);
+  });
+}
+
 function triggerRain(emoji, count, duration){
-  count    = count    || 80;
+  // On mobile use fewer particles so it doesn't feel clumsy
+  var isMobile = window.innerWidth <= 680;
+  count    = isMobile ? Math.min(count||80, 30) : (count || 80);
   duration = duration || 2800;
   for(var i=0;i<count;i++){
     (function(){
@@ -1700,7 +1726,8 @@ function triggerRain(emoji, count, duration){
         el.textContent = emoji;
         el.style.left  = (Math.random()*100)+"vw";
         el.style.top   = "-40px";
-        el.style.fontSize = (18+Math.random()*20)+"px";
+        var isMob = window.innerWidth <= 680;
+        el.style.fontSize = (isMob ? (14+Math.random()*12) : (18+Math.random()*20))+"px";
         var dur = 1800+Math.random()*1600;
         el.style.animationDuration = dur+"ms";
         document.body.appendChild(el);
