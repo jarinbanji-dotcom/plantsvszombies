@@ -15,7 +15,7 @@
   --green:#22c55e;--tick:#93c5fd;--danger:#ef4444;
   --font:'Segoe UI',system-ui,sans-serif;
 }
-html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:var(--text-primary);overflow:hidden;max-width:100%;overscroll-behavior:none;overscroll-behavior-y:none;touch-action:pan-x pan-y;}
+html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:var(--text-primary);overflow:hidden;max-width:100%;}
 
 /* ── Spinner ── */
 #loading-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:var(--bg-base);z-index:999;color:var(--text-secondary);font-size:14px;}
@@ -1278,26 +1278,7 @@ window.addEventListener("load",function(){
   $("auth-screen").style.display="flex";
 });
 
-// Block pull-to-refresh on mobile
-document.addEventListener("touchstart", function(e){
-  if(e.touches.length !== 1) return;
-  window.__touchStartY = e.touches[0].clientY;
-}, {passive:true});
-
-document.addEventListener("touchmove", function(e){
-  var scrollEl = e.target.closest("#messages-list, #rooms-list, #emoji-grid, #gif-grid");
-  if(scrollEl){
-    // Allow scrolling inside scrollable containers but block at boundaries
-    var atTop = scrollEl.scrollTop <= 0;
-    var dy = e.touches[0].clientY - (window.__touchStartY||0);
-    if(atTop && dy > 0){
-      e.preventDefault(); // block pull-to-refresh when at top of scrollable
-    }
-    return;
-  }
-  // Block all other pull-down gestures
-  e.preventDefault();
-}, {passive:false});
+// Pull-to-refresh allowed — removed block
 
 
 
