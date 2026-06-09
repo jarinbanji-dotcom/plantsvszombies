@@ -507,7 +507,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 #rain-toggle:hover{background:var(--bg-hover);}
 @keyframes wiggle{0%{transform:rotate(0)}25%{transform:rotate(-15deg)}75%{transform:rotate(15deg)}100%{transform:rotate(0)}}
 .emoji-rain-particle{position:fixed;pointer-events:none;z-index:999999;animation:emojifall linear forwards;user-select:none;will-change:transform,opacity;}
-@keyframes emojifall{0%{transform:translateY(-40px) rotate(0deg) scale(1);opacity:1;}70%{opacity:1;}100%{transform:translateY(110vh) rotate(720deg) scale(.6);opacity:0;}}
+@keyframes emojifall{0%{transform:translateY(-40px) scale(1);opacity:1;}70%{opacity:1;}100%{transform:translateY(110vh) scale(.8);opacity:0;}}
 </style>
 </head>
 <body>
@@ -757,11 +757,13 @@ function aColor(n){
             triggerRain(emoji, 100, 3000);
             // Save rain event to Firebase so other person sees it too
             if(currentRoom){
-              db.ref("rain/"+currentRoom).push({
+              var rainPushRef = db.ref("rain/"+currentRoom).push({
                 emoji: emoji,
                 by:    me.username,
                 ts:    Date.now()
               });
+              // Auto-delete after 5s so it never replays on reload
+              setTimeout(function(){ rainPushRef.remove(); }, 5000);
             }
             var picker = document.getElementById("emoji-picker");
             picker.style.transform = "scale(1.04)";
@@ -931,6 +933,10 @@ function openRoom(otherUser, otherName){
   watchTyping(otherUser);
   listenReactions(currentRoom);
   listenRain(currentRoom);
+  markSeen(currentRoom);
+  listenSeen(currentRoom, otherUser);
+  // Wipe any stale rain data on room open
+  db.ref("rain/"+currentRoom).remove();
 
   // Mobile slide
   $("sidebar").classList.remove("open");
@@ -956,6 +962,7 @@ function openRoom(otherUser, otherName){
     var row=document.createElement("div");
     row.className="msg-row "+(mine?"mine":"theirs");
     row.dataset.key = snap.key;
+    row.dataset.ts  = msg.ts || 0;
     // Quoted reply block
     var quotedHtml = "";
     if(msg.replyTo){
@@ -977,7 +984,7 @@ function openRoom(otherUser, otherName){
       '<div class="bubble" style="'+(isMedia?"padding:4px 4px 20px;":"")+'">'+
         quotedHtml+
         bubbleContent+
-        '<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick">✓✓</span>':'')+'</span>'+
+        '<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+'</span>'+
       '</div>';
     // Fetch link preview for text messages containing URLs
     if(msg.type!=="gif" && msg.type!=="image" && msg.text && hasUrl(msg.text)){
@@ -1012,6 +1019,7 @@ function openRoom(otherUser, otherName){
     ml.scrollTop=ml.scrollHeight;
     var rOn = document.getElementById('rain-toggle') && document.getElementById('rain-toggle').checked;
     if(rOn && !mine && msg.text && isEmojiOnly(msg.text)){ triggerRain(extractFirstEmoji(msg.text),100,3000); }
+    if(!mine && currentRoom){ markSeen(currentRoom); }
     // Apply any already-loaded reaction for this message
     if(reactRef){
       reactRef.child(snap.key).once("value", function(rSnap){
@@ -1697,10 +1705,57 @@ var rainToggleBtn = { addEventListener: function(){} };
 // (toggle handled above via rain-toggle-wrap click)
 
 
-// Rain listener — fires when other person triggers rain
+// ── Seen / Read receipts ─────────────────────────────────────────────────────
+var seenRef = null, seenCbFn = null;
+
+function markSeen(roomId){
+  if(!me || !roomId) return;
+  db.ref("seen/"+roomId+"/"+me.username).set({ ts: Date.now() });
+}
+
+function listenSeen(roomId, otherUser){
+  if(seenRef && seenCbFn){ seenRef.off("value", seenCbFn); seenRef=null; }
+  seenRef = db.ref("seen/"+roomId+"/"+otherUser+"/ts");
+  seenCbFn = seenRef.on("value", function(snap){
+    var seenTs = snap.val() || 0;
+    // Update all my sent message ticks
+    document.querySelectorAll(".msg-row.mine[data-ts]").forEach(function(row){
+      var msgTs = parseInt(row.dataset.ts) || 0;
+      var tick  = row.querySelector(".tick");
+      if(!tick) return;
+      if(msgTs <= seenTs){
+        tick.textContent = "✓✓";
+        tick.style.color = "#60a5fa"; // blue double tick
+      } else {
+        tick.textContent = "✓";
+        tick.style.color = "rgba(255,255,255,.45)"; // grey single tick
+      }
+    });
+  });
+}
+
+// Mark seen when app gets focus (user comes back to tab/app)
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden && currentRoom) markSeen(currentRoom);
+});
+window.addEventListener("focus", function(){
+  if(currentRoom) markSeen(currentRoom);
+});
+
+// Mark seen when scrolling to bottom of messages
+document.getElementById("messages-list").addEventListener("scroll", function(){
+  var el = this;
+  if(el.scrollTop + el.clientHeight >= el.scrollHeight - 20 && currentRoom){
+    markSeen(currentRoom);
+  }
+});
+
+// ── Rain listener — fires when other person triggers rain
+
 var rainRef = null, rainCbFn = null, lastRainTs = 0;
 function listenRain(roomId){
   if(rainRef && rainCbFn){ rainRef.off("child_added", rainCbFn); }
+  if(seenRef && seenCbFn){ seenRef.off("value", seenCbFn); seenRef=null; }
   rainRef = db.ref("rain/"+roomId).orderByChild("ts").limitToLast(1);
   rainCbFn = rainRef.on("child_added", function(snap){
     var data = snap.val();
@@ -1708,6 +1763,8 @@ function listenRain(roomId){
     // Don't replay old events or own events
     if(data.ts <= lastRainTs) return;
     lastRainTs = data.ts;
+    // Delete from Firebase immediately so it never replays
+    snap.ref.remove();
     if(data.by === me.username) return; // sender already sees it locally
     triggerRain(data.emoji, 100, 3000);
   });
