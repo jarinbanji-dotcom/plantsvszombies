@@ -875,6 +875,14 @@ function bootApp(){
   $("user-av").textContent=initials(me.displayName);
   $("user-av").style.background=aColor(me.displayName);
   $("user-display-name").textContent=me.displayName;
+  // Load saved rain toggle state
+  db.ref("settings/"+me.username+"/rainEnabled").once("value", function(snap){
+    var saved = snap.val();
+    if(saved === true){
+      var rainCbEl = document.getElementById("rain-toggle");
+      if(rainCbEl){ rainCbEl.checked = true; updateRainToggleUI(); }
+    }
+  });
   listenUsers();
 }
 
@@ -1698,6 +1706,8 @@ function updateRainToggleUI(){
 document.getElementById("rain-toggle-wrap").addEventListener("click", function(){
   rainCb.checked = !rainCb.checked;
   updateRainToggleUI();
+  // Save toggle state to Firebase per user
+  if(me) db.ref("settings/"+me.username+"/rainEnabled").set(rainCb.checked);
 });
 
 // dummy — old toggle btn removed
