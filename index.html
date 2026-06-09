@@ -481,25 +481,36 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 #ctx-menu{
   position:fixed;z-index:99997;
   background:#1e293b;border:1px solid #2d3f55;
-  border-radius:40px;padding:6px 10px;
+  border-radius:14px;
   box-shadow:0 8px 32px rgba(0,0,0,.8);
   display:none;
+  right:10px;
+  width:auto;
+  box-sizing:border-box;
+  overflow:hidden;
 }
 #ctx-menu.show{display:block;animation:ctxPop .18s cubic-bezier(.34,1.56,.64,1);}
 @keyframes ctxPop{from{opacity:0;transform:scale(.7);}to{opacity:1;transform:scale(1);}}
 .ctx-emoji-row{
-  display:flex;gap:4px;align-items:center;
-  padding:4px 2px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px;border-bottom:1px solid #334155;gap:2px;
 }
-.ctx-emoji{font-size:30px;cursor:pointer;padding:6px 8px;border-radius:50%;transition:background .1s,transform .15s;line-height:1;text-align:center;}
+.ctx-emoji{
+  font-size:20px;cursor:pointer;
+  width:32px;height:32px;
+  border-radius:8px;
+  transition:background .1s,transform .1s;
+  line-height:32px;text-align:center;
+  flex-shrink:0;
+}
 .ctx-emoji:hover,.ctx-emoji:active{background:rgba(255,255,255,.12);transform:scale(1.25);}
 .ctx-item{
   display:flex;align-items:center;gap:9px;
-  padding:9px 12px;border-radius:8px;
-  font-size:13.5px;color:var(--text-primary);cursor:pointer;
+  padding:10px 16px;
+  font-size:14px;color:var(--text-primary);cursor:pointer;
   transition:background .15s;
 }
-.ctx-item:hover{background:#2d3f55;}
+.ctx-item:hover,.ctx-item:active{background:#2d3f55;}
 .ctx-item.danger{color:#f87171;}
 
 /* Emoji Rain */
@@ -588,6 +599,26 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   padding-left:8px;padding-right:8px;
   transition:background .15s;
 }
+
+.ctx-action{
+  width:32px;height:32px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;cursor:pointer;flex-shrink:0;
+  transition:background .15s,transform .1s;
+  line-height:1;text-align:center;
+}
+.ctx-action:hover,.ctx-action:active{background:rgba(255,255,255,.12);transform:scale(1.15);}
+.ctx-action.danger:hover,.ctx-action.danger:active{background:rgba(248,113,113,.15);}
+
+.ctx-divider{
+  color:#334155;font-size:18px;padding:0 2px;
+  user-select:none;flex-shrink:0;
+}
+
+.ctx-divider{color:#475569;font-size:16px;padding:0 2px;user-select:none;flex-shrink:0;}
+.ctx-action{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;flex-shrink:0;transition:background .15s,transform .1s;}
+.ctx-action:hover,.ctx-action:active{background:rgba(255,255,255,.12);transform:scale(1.15);}
+.ctx-action.danger:hover,.ctx-action.danger:active{background:rgba(248,113,113,.15);}
 </style>
 </head>
 <body>
@@ -620,6 +651,9 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
     <span class="ctx-emoji" data-emoji="🍑">🍑</span>
     <span class="ctx-emoji" data-emoji="🍆">🍆</span>
     <span class="ctx-emoji" id="ctx-more-emoji" style="font-size:18px;color:var(--text-secondary);">＋</span>
+    <span class="ctx-divider">|</span>
+    <span class="ctx-action" id="ctx-edit" title="Edit">✏️</span>
+    <span class="ctx-action danger" id="ctx-delete" title="Delete">🗑️</span>
   </div>
   <div id="ctx-actions" style="display:none;border-top:1px solid #2d3f55;margin-top:4px;padding-top:4px;border-radius:0 0 20px 20px;">
     <div class="ctx-item" id="ctx-edit">✏️ Edit</div>
@@ -1560,35 +1594,24 @@ var ctxMenu = document.getElementById("ctx-menu");
 
 function showCtxMenu(x, y, msgKey, row, mine){
   ctxTarget = { key: msgKey, row: row, mine: mine };
-  var actionsEl = document.getElementById("ctx-actions");
-  if(actionsEl) actionsEl.style.display = mine ? "block" : "none";
+  var editEl = document.getElementById("ctx-edit");
+  var delEl  = document.getElementById("ctx-delete");
+  var divEl  = document.querySelector(".ctx-divider");
+  if(editEl) editEl.style.display = mine ? "flex" : "none";
+  if(delEl)  delEl.style.display  = mine ? "flex" : "none";
+  if(divEl)  divEl.style.display  = mine ? "inline" : "none";
 
+  ctxMenu.style.right = "10px";
+  ctxMenu.style.left  = "auto";
   ctxMenu.classList.add("show");
 
-  var mw  = ctxMenu.offsetWidth  || 220;
   var mh  = ctxMenu.offsetHeight || 120;
-  var vw  = window.innerWidth;
   var vh  = window.innerHeight;
-  var pad = 8;
-
-  // Get message row position to anchor popup above it
-  var rect = row.getBoundingClientRect();
-
-  // Horizontal: center on the bubble
-  var bubbleEl = row.querySelector(".bubble");
-  var bRect = bubbleEl ? bubbleEl.getBoundingClientRect() : rect;
-  var left = bRect.left + (bRect.width / 2) - (mw / 2);
-
-  // Vertical: place emoji row just above the message
-  var top = rect.top - mh - 8;
-  if(top < pad) top = rect.bottom + 8; // flip below if no space above
-
-  // Clamp to viewport
-  left = Math.max(pad, Math.min(left, vw - mw - pad));
-  top  = Math.max(pad, Math.min(top,  vh - mh - pad));
-
-  ctxMenu.style.left = left + "px";
-  ctxMenu.style.top  = top  + "px";
+  var pad = 10;
+  var top = y - mh - pad;
+  if(top < pad) top = y + pad;
+  top = Math.max(pad, Math.min(top, vh - mh - pad));
+  ctxMenu.style.top = top + "px";
 
   document.getElementById("del-menu").classList.remove("show");
 }
