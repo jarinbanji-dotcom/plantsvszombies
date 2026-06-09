@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <title>404 - Page Not Found</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -15,7 +15,7 @@
   --green:#22c55e;--tick:#93c5fd;--danger:#ef4444;
   --font:'Segoe UI',system-ui,sans-serif;
 }
-html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:var(--text-primary);overflow:hidden;}
+html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:var(--text-primary);overflow:hidden;max-width:100%;overscroll-behavior:none;overscroll-behavior-y:none;touch-action:pan-x pan-y;}
 
 /* ── Spinner ── */
 #loading-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:var(--bg-base);z-index:999;color:var(--text-secondary);font-size:14px;}
@@ -90,6 +90,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   flex-direction:column;
   background:var(--bg-chat);
   overflow:hidden;
+  max-width:100%;
 }
 
 /* Chat header */
@@ -125,7 +126,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
 #messages-list{
   flex:1;
-  overflow-y:auto;
+  overflow-y:auto;overflow-x:hidden;
   padding:16px 14px 8px;
   display:flex;
   flex-direction:column;
@@ -171,26 +172,40 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
 /* Input bar */
 .chat-input-bar{
-  display:flex;align-items:flex-end;gap:6px;
-  padding:10px 12px;
+  display:flex;align-items:center;gap:4px;
+  padding:8px 10px;
   border-top:1px solid var(--border);
   background:var(--bg-sidebar);
   flex-shrink:0;
   position:relative;
 }
+.input-wrap{
+  flex:1;display:flex;align-items:center;
+  background:var(--bg-input);border:1px solid var(--border);border-radius:20px;
+  transition:border-color .2s;min-width:0;
+}
+.input-wrap:focus-within{border-color:var(--accent);}
 #msg-input{
   flex:1;min-height:40px;max-height:110px;
-  padding:9px 13px;
-  background:var(--bg-input);border:1px solid var(--border);border-radius:20px;
+  padding:9px 8px 9px 14px;
+  background:transparent;border:none;border-radius:20px;
   color:var(--text-primary);font-size:14px;outline:none;
-  font-family:var(--font);line-height:1.5;transition:border-color .2s;overflow-y:auto;
+  font-family:var(--font);line-height:1.5;overflow-y:auto;
   white-space:pre-wrap;word-break:break-word;cursor:text;
 }
-#msg-input:focus{border-color:var(--accent);}
 #msg-input:empty::before{content:attr(data-placeholder);color:var(--text-muted);pointer-events:none;}
-.emoji-btn,.send-btn{width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,transform .1s;}
-.emoji-btn{background:var(--bg-input);color:var(--text-secondary);font-size:18px;}
-.emoji-btn:hover{background:var(--bg-hover);color:var(--text-primary);}
+.img-btn{
+  background:transparent;border:none;
+  color:var(--text-muted);
+  width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex-shrink:0;border-radius:50%;
+  transition:color .15s;margin-right:4px;
+}
+.img-btn:hover{color:var(--text-primary);}
+.send-btn{width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,transform .1s;}
+.emoji-btn{background:transparent;color:var(--text-secondary);font-size:20px;border:none;width:30px;height:30px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;}
+.emoji-btn:hover{color:var(--text-primary);}
 .send-btn{background:var(--accent);color:#fff;font-size:17px;}
 .send-btn:hover{background:var(--accent-hover);}
 .send-btn:active{transform:scale(.9);}
@@ -298,8 +313,18 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 @keyframes tdot{0%,80%,100%{transform:scale(.7);opacity:.4;}40%{transform:scale(1);opacity:1;}}
 
 /* ── GIF button & panel ── */
-.gif-btn{background:var(--bg-input);color:var(--text-secondary);font-size:11px;font-weight:700;font-family:var(--font);letter-spacing:.5px;border-radius:20px;border:none;padding:0 10px;height:40px;cursor:pointer;transition:background .15s;flex-shrink:0;}
-.gif-btn:hover{background:var(--bg-hover);color:var(--text-primary);}
+.gif-btn{
+  background:transparent;border:none;
+  color:var(--text-secondary);
+  font-size:13px;font-weight:700;font-family:var(--font);
+  letter-spacing:.5px;cursor:pointer;
+  padding:0 2px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border-radius:50%;
+  transition:color .15s,background .15s;
+}
+.gif-btn:hover{color:var(--text-primary);background:var(--bg-hover);}
+.gif-btn:active{transform:scale(.93);}
 
 #gif-panel{
   position:absolute;bottom:64px;left:58px;
@@ -336,6 +361,153 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 @media(max-width:680px){
   #gif-panel{left:6px;width:calc(100vw - 12px);}
 }
+
+/* ── Image send ── */
+.img-btn{background:transparent;color:var(--text-secondary);font-size:20px;border-radius:50%;border:none;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:color .15s;padding:0;}
+.img-btn:hover{color:var(--text-primary);}
+#img-file-input{display:none;}
+
+/* Image bubble */
+.msg-img{
+  max-width:220px;max-height:220px;width:100%;
+  border-radius:12px;display:block;cursor:pointer;
+  object-fit:cover;
+}
+
+/* Fullscreen image viewer */
+#img-viewer{
+  position:fixed;inset:0;background:rgba(0,0,0,.92);
+  display:none;align-items:center;justify-content:center;
+  z-index:99999;cursor:zoom-out;
+  flex-direction:column;gap:12px;
+}
+#img-viewer.open{display:flex;}
+#img-viewer img{max-width:92vw;max-height:88vh;border-radius:10px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,.8);}
+#img-viewer-close{position:absolute;top:16px;right:20px;font-size:28px;color:#fff;cursor:pointer;opacity:.7;line-height:1;}
+#img-viewer-close:hover{opacity:1;}
+
+/* Upload progress */
+.upload-progress{
+  display:inline-block;font-size:12px;color:var(--text-muted);
+  padding:6px 10px;background:var(--bg-bubble-me);border-radius:12px;
+}
+
+/* ── Link rendering & preview ── */
+.bubble-text a{
+  color:#93c5fd;text-decoration:underline;word-break:break-all;
+}
+.bubble-text a:hover{color:#bfdbfe;}
+
+.link-preview{
+  margin-top:8px;
+  border-radius:10px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(0,0,0,.25);
+  cursor:pointer;
+  max-width:100%;
+  display:block;
+  text-decoration:none;
+}
+.link-preview:hover{background:rgba(0,0,0,.4);}
+.link-preview-img{width:100%;max-height:140px;object-fit:cover;display:block;}
+.link-preview-body{padding:8px 10px;}
+.link-preview-site{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;}
+.link-preview-title{font-size:13px;font-weight:600;color:var(--text-primary);line-height:1.4;margin-bottom:2px;}
+.link-preview-desc{font-size:12px;color:var(--text-secondary);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.link-preview-url{font-size:11px;color:#93c5fd;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ── Reply bar ── */
+#reply-bar{
+  display:none;align-items:center;gap:10px;
+  padding:7px 14px;background:var(--bg-input);
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+#reply-bar.show{display:flex;}
+.reply-bar-line{width:3px;height:36px;border-radius:2px;background:var(--accent);flex-shrink:0;}
+.reply-bar-body{flex:1;min-width:0;}
+.reply-bar-name{font-size:11.5px;font-weight:600;color:var(--accent);}
+.reply-bar-text{font-size:12.5px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.reply-bar-close{font-size:18px;color:var(--text-muted);cursor:pointer;flex-shrink:0;line-height:1;}
+.reply-bar-close:hover{color:var(--text-primary);}
+
+/* Quoted reply inside bubble */
+.quoted{
+  background:rgba(0,0,0,.2);border-radius:8px;
+  padding:5px 9px;margin-bottom:6px;
+  border-left:3px solid var(--accent);cursor:pointer;
+}
+.quoted-name{font-size:11px;font-weight:600;color:var(--accent);}
+.quoted-text{font-size:12px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* Swipe-to-reply arrow */
+.reply-arrow{
+  position:absolute;
+  display:flex;align-items:center;justify-content:center;
+  width:32px;height:32px;border-radius:50%;
+  background:var(--bg-input);
+  color:var(--text-secondary);font-size:16px;
+  opacity:0;pointer-events:none;
+  transition:opacity .15s;
+  top:50%;transform:translateY(-50%);
+  z-index:2;
+}
+.msg-row{position:relative;overflow:hidden;}
+.msg-row.mine .reply-arrow{right:6px;left:auto;}
+.msg-row.theirs .reply-arrow{left:6px;right:auto;}
+.msg-row.swiping .reply-arrow{opacity:1;}
+
+/* Reaction pill */
+.reactions{
+  display:flex;flex-wrap:wrap;gap:3px;
+  margin-top:4px;
+}
+.reaction-pill{
+  display:inline-flex;align-items:center;gap:3px;
+  background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:12px;padding:2px 7px;
+  font-size:14px;cursor:pointer;
+  transition:background .15s;
+  user-select:none;
+}
+.reaction-pill:hover{background:rgba(255,255,255,.18);}
+.reaction-pill.mine-reacted{background:rgba(59,130,246,.3);border-color:var(--accent);}
+.reaction-count{font-size:11px;color:var(--text-secondary);}
+
+/* Context menu (long press / right click) */
+#ctx-menu{
+  position:fixed;z-index:99997;
+  background:#1e293b;border:1px solid #334155;
+  border-radius:14px;padding:6px;
+  box-shadow:0 8px 32px rgba(0,0,0,.7);
+  display:none;min-width:160px;
+}
+#ctx-menu.show{display:block;}
+.ctx-emoji-row{
+  display:flex;gap:2px;justify-content:space-around;
+  padding:6px 4px 8px;border-bottom:1px solid #334155;margin-bottom:4px;
+}
+.ctx-emoji{font-size:24px;cursor:pointer;padding:4px 6px;border-radius:8px;transition:background .1s;line-height:1;}
+.ctx-emoji:hover{background:rgba(255,255,255,.1);}
+.ctx-item{
+  display:flex;align-items:center;gap:9px;
+  padding:9px 12px;border-radius:8px;
+  font-size:13.5px;color:var(--text-primary);cursor:pointer;
+  transition:background .15s;
+}
+.ctx-item:hover{background:#2d3f55;}
+.ctx-item.danger{color:#f87171;}
+
+/* Emoji Rain */
+#rain-toggle{background:transparent;border:none;font-size:16px;cursor:pointer;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .2s,background .15s;color:var(--text-muted);}
+#rain-toggle.active{color:#fbbf24;filter:drop-shadow(0 0 6px #fbbf24);animation:wiggle .4s ease;}
+#rain-toggle:hover{background:var(--bg-hover);}
+@keyframes wiggle{0%{transform:rotate(0)}25%{transform:rotate(-15deg)}75%{transform:rotate(15deg)}100%{transform:rotate(0)}}
+.emoji-rain-particle{position:fixed;pointer-events:none;z-index:999999;animation:emojifall linear forwards;user-select:none;will-change:transform,opacity;}
+@keyframes emojifall{0%{transform:translateY(-40px) rotate(0deg) scale(1);opacity:1;}70%{opacity:1;}100%{transform:translateY(110vh) rotate(720deg) scale(.6);opacity:0;}}
 </style>
 </head>
 <body>
@@ -351,7 +523,26 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
 <!-- Secret trigger dot (bottom-right) -->
 <div id="secret-dot" title=""></div>
+
+<!-- Fullscreen image viewer -->
+<div id="img-viewer">
+  <span id="img-viewer-close">✕</span>
+  <img id="img-viewer-img" src="" alt=""/>
+</div>
+
 <div id="del-menu"><div class="del-menu-item" id="del-btn">🗑️ Delete message</div></div>
+<div id="ctx-menu">
+  <div class="ctx-emoji-row">
+    <span class="ctx-emoji" data-emoji="❤️">❤️</span>
+    <span class="ctx-emoji" data-emoji="😂">😂</span>
+    <span class="ctx-emoji" data-emoji="😮">😮</span>
+    <span class="ctx-emoji" data-emoji="😢">😢</span>
+    <span class="ctx-emoji" data-emoji="👍">👍</span>
+    <span class="ctx-emoji" data-emoji="🔥">🔥</span>
+  </div>
+  <div class="ctx-item" id="ctx-reply">↩️ Reply</div>
+  <div class="ctx-item danger" id="ctx-delete" style="display:none;">🗑️ Delete</div>
+</div>
 
 
 <!-- Loading -->
@@ -433,9 +624,29 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
       <div id="messages-list"></div>
 
       <div id="typing-indicator"></div>
+      <div id="reply-bar">
+        <div class="reply-bar-line"></div>
+        <div class="reply-bar-body">
+          <div class="reply-bar-name" id="reply-bar-name"></div>
+          <div class="reply-bar-text" id="reply-bar-text"></div>
+        </div>
+        <span class="reply-bar-close" id="reply-bar-close">✕</span>
+      </div>
       <div class="chat-input-bar">
         <!-- Emoji picker popup -->
         <div id="emoji-picker">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;padding:0 2px;">
+            <span style="font-size:12px;color:var(--text-secondary);font-weight:500;">Emoji Picker</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-secondary);">
+              <span id="rain-label">Rain OFF</span>
+              <div id="rain-toggle-wrap" style="position:relative;width:36px;height:20px;">
+                <input type="checkbox" id="rain-toggle" style="opacity:0;width:0;height:0;position:absolute;">
+                <span id="rain-track" style="position:absolute;inset:0;background:#334155;border-radius:20px;transition:background .2s;cursor:pointer;"></span>
+                <span id="rain-thumb" style="position:absolute;top:3px;left:3px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform .2s;pointer-events:none;"></span>
+              </div>
+              <span style="font-size:16px;">🌧️</span>
+            </label>
+          </div>
           <div class="emoji-tabs" id="emoji-tabs"></div>
           <div class="emoji-grid" id="emoji-grid"></div>
         </div>
@@ -451,7 +662,13 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
         <button class="emoji-btn" id="btn-emoji" title="Emoji">😊</button>
         <button class="gif-btn"   id="btn-gif"   title="GIF">GIF</button>
-        <div id="msg-input" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Type a message…" inputmode="text"></div>
+        <input  type="file" id="img-file-input" accept="image/*"/>
+        <div class="input-wrap">
+          <div id="msg-input" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Type a message…" inputmode="text"></div>
+          <button class="img-btn" id="btn-img" title="Send image">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.41 17.41a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+        </div>
         <button class="send-btn" id="btn-send">➤</button>
       </div>
     </div>
@@ -477,14 +694,15 @@ var db = firebase.database();
 
 // ── Emoji data ────────────────────────────────────────────────────────────────
 var EMOJIS = {
-  "😀 Smileys":["😀","😁","😂","🤣","😃","😄","😅","😆","😉","😊","😋","😎","😍","🥰","😘","😗","😙","😚","🙂","🤗","🤩","🤔","🤨","😐","😑","😶","🙄","😏","😣","😥","😮","🤐","😯","😪","😫","🥱","😴","😌","😛","😜","😝","🤤","😒","😓","😔","😕","🙃","🤑","😲","🙁","😖","😞","😟","😤","😢","😭","😦","😧","😨","😩","🤯","😬","😰","😱","🥵","🥶","😳","🤪","😵","🥴","😠","😡","🤬","😷","🤒","🤕","🤢","🤮","🤧","😇","🥳","🥺","🤠","🤡","🤥","🤫","🤭","🧐","🤓","😈","👿","👹","👺","💀","☠️","👻","👽","🤖","💩","😺","😸","😹","😻","😼","😽","🙀","😿","😾"],
-  "👋 Gestures":["👋","🤚","🖐️","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦵","🦶","👂","🦻","👃","🫀","🫁","🧠","🦷","🦴","👀","👁️","👅","👄","🫦"],
-  "❤️ Hearts":["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❣️","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☯️","🕊️","🌈","💫","⭐","🌟","✨","💥","🔥","🎉","🎊","🎈","🥂","🍀"],
-  "🐶 Animals":["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐒","🦅","🦆","🦉","🦇","🐺","🐗","🐴","🦄","🐝","🐛","🦋","🐌","🐞","🐜","🦟","🦗","🕷️","🦂","🐢","🐍","🦎","🦖","🦕","🐙","🦑","🦐","🦀","🐡","🐠","🐟","🐬","🐳","🐋","🦈","🐊","🐅","🐆","🦓","🦍","🦧","🦣","🐘","🦏","🦛","🦒","🦘","🦬","🐃","🐄","🐎","🐖","🐏","🐑","🦙","🐐","🦌","🐕","🐩","🦮","🐈","🐓","🦃","🦤","🦚","🦜","🦩","🦢","🐇","🦝","🦨","🦡","🦫","🦦","🦥","🐁","🐀","🐿️","🦔"],
-  "🍎 Food":["🍎","🍊","🍋","🍇","🍓","🍒","🍑","🥭","🍍","🥥","🥝","🍅","🥑","🍆","🥦","🧄","🧅","🥕","🌽","🌶️","🥒","🥬","🥗","🥙","🌮","🌯","🥪","🥫","🍕","🍔","🍟","🌭","🍿","🥚","🍳","🧆","🥞","🧇","🥓","🍗","🍖","🍠","🍱","🍘","🍙","🍚","🍛","🍜","🍝","🍞","🥐","🥖","🫓","🥨","🥯","🧀","🍰","🎂","🧁","🍮","🍭","🍬","🍫","🍿","🍩","🍪","☕","🍵","🧃","🥤","🍺","🍻","🥂","🍷","🥃","🍸","🍹","🧉","🍾"],
-  "⚽ Sports":["⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🎱","🏓","🏸","🥊","🥋","🎯","⛳","🎣","🤿","🎽","🎿","🛷","🥌","⛸️","🏋️","🤸","🤺","🏇","⛷️","🏊","🚣","🧘","🧗","🚴","🏆","🥇","🥈","🥉","🏅","🎖️","🎗️"],
-  "🚀 Travel":["🚀","✈️","🚂","🚃","🚄","🚅","🚆","🚇","🚈","🚉","🚊","🚝","🚞","🚋","🚌","🚍","🚎","🚐","🚑","🚒","🚓","🚔","🚕","🚖","🚗","🚘","🚙","🛻","🚚","🚛","🚜","🏎️","🏍️","🛵","🦽","🦼","🛺","🚲","🛴","🛹","🛼","🚏","🛣️","🛤️","⛽","🚨","🚥","🚦","🛑","🏗️","🏘️","🏚️","🏠","🏡","🏢","🏣","🏤","🏥","🏦","🏧","🏨","🏩","🏪","🏫","🏬","🏭","🏯","🏰","💒","🗼","🗽","⛪","🕌","🛕","🕍","⛩️","🕋","⛲","⛺","🌁","🌃","🌄","🌅","🌆","🌇","🌉","♨️","🎠","🎡","🎢","🎪","🌐","🗺️","🧭","🏔️","⛰️","🌋","🗻","🏕️","🏖️","🏜️","🏝️","🏞️"],
-  "💡 Objects":["💡","🔦","🕯️","🪔","💰","💴","💵","💶","💷","💸","💳","🪙","💎","⚖️","🧲","🔧","🔨","⚒️","🛠️","⛏️","🔩","🪛","🪚","🔫","🧨","💣","🪓","🔪","🗡️","⚔️","🛡️","🚬","⚰️","🏺","🧿","📿","💊","💉","🩸","🩹","🩺","🩻","🪬","🪤","🪣","🧴","🧷","🧹","🧺","🧻","🪣","🧼","🫧","🪥","🧽","🛒","🚪","🪞","🪟","🛋️","🪑","🚽","🪠","🚿","🛁","🪤","📱","💻","⌨️","🖥️","🖨️","🖱️","🖲️","💾","💿","📀","📷","📸","📹","🎥","📽️","🎞️","📞","☎️","📟","📠","📺","📻","🎙️","🎚️","🎛️","🧭","⏱️","⏲️","⏰","🕰️","⌛","⏳","📡","🔋","🪫","🔌"]
+  "😀 Smileys":["😀","😁","😂","🤣","🥲","🥹","😃","😄","😅","😆","😉","😊","😋","😎","😍","🥰","😘","😗","😙","😚","🙂","🤗","🤩","🤔","🤨","😐","😑","😶","😶‍🌫️","🙄","😏","😣","😥","😮","🤐","😯","😪","😫","🥱","😴","😌","😛","😜","😝","🤤","😒","😓","😔","😕","🙃","🤑","😲","🙁","😖","😞","😟","😤","😢","😭","😦","😧","😨","😩","🤯","😬","😰","😱","🥵","🥶","😳","🤪","😵","😵‍💫","🥴","😠","😡","🤬","😷","🤒","🤕","🤢","🤮","🤧","😇","🥳","🥸","🥺","🤠","🤡","🤥","🫨","🫤","🫡","🫠","🫣","🫢","🫥","🤫","🤭","🧐","🤓","😈","👿","👹","👺","💀","☠️","👻","👽","👾","🤖","💩","😺","😸","😹","😻","😼","😽","🙀","😿","😾","🫶","🤝","👐","🙌","👏","🤲","🙏","✍️","💅","🤳","💪","🦾","👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","🫵","🫰","🤙","🖖","🤏","👁️‍🗨️"],
+  "👋 People":["👶","🧒","👦","👧","🧑","👱","👨","🧔","🧔‍♂️","🧔‍♀️","👩","🧓","👴","👵","🙍","🙍‍♂️","🙍‍♀️","🙎","🙎‍♂️","🙎‍♀️","🙅","🙅‍♂️","🙅‍♀️","🙆","🙆‍♂️","🙆‍♀️","💁","💁‍♂️","💁‍♀️","🙋","🙋‍♂️","🙋‍♀️","🧏","🧏‍♂️","🧏‍♀️","🙇","🙇‍♂️","🙇‍♀️","🤦","🤦‍♂️","🤦‍♀️","🤷","🤷‍♂️","🤷‍♀️","👮","👮‍♂️","👮‍♀️","🕵️","🕵️‍♂️","🕵️‍♀️","💂","💂‍♂️","💂‍♀️","🥷","👷","👷‍♂️","👷‍♀️","🫅","🤴","👸","👳","👳‍♂️","👳‍♀️","👲","🧕","🤵","🤵‍♂️","🤵‍♀️","👰","👰‍♂️","👰‍♀️","🤰","🫄","🤱","👼","🎅","🤶","🧑‍🎄","🦸","🦸‍♂️","🦸‍♀️","🦹","🦹‍♂️","🦹‍♀️","🧙","🧙‍♂️","🧙‍♀️","🧝","🧝‍♂️","🧝‍♀️","🧛","🧛‍♂️","🧛‍♀️","🧟","🧟‍♂️","🧟‍♀️","🧞","🧞‍♂️","🧞‍♀️","🧜","🧜‍♂️","🧜‍♀️","🧚","🧚‍♂️","🧚‍♀️","🧌","👫","👬","👭","💑","👩‍❤️‍👨","💏","👩‍❤️‍💋‍👨","👨‍👩‍👦","👨‍👩‍👧","👨‍👩‍👧‍👦","👁️","👀","👃","👂","🫀","🫁","🧠","🦷","🦴","👅","👄","🫦","💋","👣","🦰","🦱","🦳","🦲","🧑‍🤝‍🧑","👩‍👦","👩‍👧","👨‍👦","👨‍👧","🧑‍🦯","🧑‍🦼","🧑‍🦽","🧑‍💻","🧑‍🎤","🧑‍🎨","🧑‍✈️","🧑‍🚀","🧑‍🚒","🧑‍⚕️","🧑‍🍳","🧑‍🌾","🧑‍🔧","🧑‍🏭","🧑‍💼","🧑‍🔬","🧑‍🏫","🧑‍⚖️","🕺","💃","🧖","🧖‍♂️","🧖‍♀️","🧗","🧗‍♂️","🧗‍♀️","🤸","🤸‍♂️","🤸‍♀️","⛹️","⛹️‍♂️","⛹️‍♀️","🤺","🏇","🏂","🏋️","🏋️‍♂️","🏋️‍♀️","🤼","🤼‍♂️","🤼‍♀️","🤽","🤽‍♂️","🤽‍♀️","🤾","🤾‍♂️","🤾‍♀️","🤹","🧘","🧘‍♂️","🧘‍♀️","🛀","🛌"],
+  "❤️ Hearts":["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","❤️‍🔥","❤️‍🩹","💔","❣️","💕","💞","💓","💗","💖","💘","💝","💟","♥️","🫀","💌","💍","💒","🌹","🌷","🌸","🌺","🌻","🌼","💐","🏵️","🎀","🎁","🎊","🎉","🎈","✨","💫","⭐","🌟","🌠","☀️","🌈","🕊️","🦋","🍀","🌙"],
+  "💏 Romance":["💏","👩‍❤️‍💋‍👨","👨‍❤️‍💋‍👨","👩‍❤️‍💋‍👩","💑","👩‍❤️‍👨","👫","🧑‍🤝‍🧑","👬","👭","🫂","🤗","😘","😍","🥰","😚","😙","😗","💋","🫦","😻","💌","💍","💒","👰","🤵","💝","💘","💖","💗","💓","💞","💕","❤️‍🔥","❤️‍🩹","🫀","🥂","🍾","🌹","🌷","🌸","💐","🌺","🏵️","🎀","🎁","🧸","🍫","🍓","🍒","🍰","🎂","🕯️","🛏️","🛁","🫧","🧴","👙","👗","👠","👡","💄","💅","💎","📸","🌅","🌄","🌃","🌉","🌌","🏖️","🏝️","🌴","✈️","🚢","🎠","🎡","🎢","🎭","🎬","🎵","🎶","💃","🕺","🥵","🔥","💫","✨","⭐","🌟","🌙","🎊","🎉","🎈","🫶","💪","🥳","😳","🤤","😋","🥴","🤭","🫣","🙈","🙉","🙊","😏","😈","🤩","😵","🥺","🫠","😇","💦","🌶️"],
+  "🐶 Animals":["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐒","🦆","🦅","🦉","🦇","🐺","🐗","🐴","🦄","🫏","🐝","🪱","🐛","🦋","🐌","🐞","🐜","🪲","🦟","🦗","🕷️","🦂","🐢","🐍","🦎","🦖","🦕","🐙","🦑","🦐","🦞","🦀","🐡","🐠","🐟","🐬","🐳","🐋","🦈","🐊","🐅","🐆","🦓","🦍","🦧","🦣","🐘","🦏","🦛","🦒","🦘","🦬","🐃","🐄","🐎","🐖","🐏","🐑","🦙","🐐","🦌","🐕","🐩","🦮","🐈","🐓","🦃","🦤","🦚","🦜","🦩","🦢","🐇","🦝","🦨","🦡","🦫","🦦","🦥","🐁","🐀","🐿️","🦔","🐾","🦠","🌿","🍄","🌵","🌲","🌳","🌴","🪴","🎋","🎍","🍀","🌱","🌾","🌻","🌺","🌸","🌼","🌷","🌹","🥀","🌙","⭐","🌍","🌊","🏔️","🏕️"],
+  "🍎 Food":["🍎","🍊","🍋","🍋‍🟩","🍇","🍓","🫐","🍈","🍒","🍑","🥭","🍍","🥥","🥝","🍅","🥑","🍆","🥦","🧄","🧅","🥕","🌽","🌶️","🫑","🥒","🥬","🥗","🫙","🥙","🧆","🌮","🌯","🫔","🥪","🥫","🍕","🍔","🍟","🌭","🍿","🥚","🍳","🥞","🧇","🥓","🍗","🍖","🍠","🫕","🍱","🍘","🍙","🍚","🍛","🍜","🍝","🍞","🥐","🥖","🫓","🥨","🥯","🧀","🍰","🎂","🧁","🍮","🍭","🍬","🍫","🍩","🍪","🌰","🥜","🫘","🍯","🧃","🥤","🧋","☕","🍵","🫖","🍺","🍻","🥂","🍷","🥃","🍸","🍹","🧉","🍾","🫗","🧊","🥄","🍴","🍽️","🥢","🫙"],
+  "⚽ Sports":["⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🥏","🎱","🪀","🏓","🏸","🥊","🥋","🥅","⛳","🎣","🤿","🎽","🎿","🛷","🥌","⛸️","🛹","🛼","🛺","🪂","🏋️","🤸","🤺","🏇","⛷️","🏊","🚣","🧘","🧗","🚴","🏆","🥇","🥈","🥉","🏅","🎖️","🏵️","🎗️","🎫","🎟️","🎪","🤹","🎭","🎨","🎬","🎤","🎧","🎼","🎵","🎶","🎹","🪇","🥁","🪘","🎷","🎺","🪗","🎸","🪕","🎻","🪈"],
+  "🚀 Travel":["🚀","✈️","🛸","🚁","🛩️","🪂","⛵","🚤","🛥️","🛳️","⛴️","🚢","🚂","🚃","🚄","🚅","🚆","🚇","🚈","🚉","🚊","🚝","🚞","🚋","🚌","🚍","🚎","🚐","🚑","🚒","🚓","🚕","🚗","🚙","🛻","🚚","🚛","🚜","🏎️","🏍️","🛵","🛺","🚲","🛴","🛹","🛼","🚏","⛽","🚨","🚥","🚦","🛑","🏗️","🏠","🏡","🏢","🏣","🏤","🏥","🏦","🏨","🏩","🏪","🏫","🏬","🏭","🏯","🏰","💒","🗼","🗽","⛪","🕌","🛕","🕍","⛩️","🕋","⛲","⛺","🌁","🌃","🌄","🌅","🌆","🌇","🌉","🌌","🌠","🎇","🎆","🗺️","🧭","🏔️","⛰️","🌋","🗻","🏕️","🏖️","🏜️","🏝️","🏞️","🌍","🌎","🌏","🌐"],
+  "💡 Objects":["💡","🔦","🕯️","🪔","💰","💴","💵","💶","💷","💸","💳","🪙","💎","⚖️","🧲","🔧","🔨","⚒️","🛠️","🔩","🪛","🪚","🔫","🧨","💣","🪓","🔪","🗡️","⚔️","🛡️","🚬","💊","💉","🩸","🩹","🩺","🩻","🧴","🧷","🧹","🧺","🧻","🧼","🫧","🪥","🧽","🛒","🚪","🪞","🪟","🛋️","🪑","🚽","🚿","🛁","📱","💻","⌨️","🖥️","🖨️","🖱️","💾","💿","📀","📷","📸","📹","🎥","📽️","📞","☎️","📟","📠","📺","📻","🎙️","🎚️","🎛️","🧭","⏱️","⏲️","⏰","🕰️","⌛","⏳","📡","🔋","🪫","🔌","💈","🪒","🧻","🪣","🧹","🪠","🧺","🚿","🛁","🧴","🪥","🛒","🚪","🪞","🪟","📦","📫","📪","📬","📭","📮","🗳️","✏️","✒️","🖊️","🖋️","📝","📁","📂","🗂️","📅","📆","🗒️","🗓️","📇","📈","📉","📊","📋","📌","📍","📎","🖇️","📏","📐","✂️","🗃️","🗄️","🗑️","🔒","🔓","🔏","🔐","🔑","🗝️","🔨","🪓","⛏️","⚒️","🛠️","🗜️","🔧","🔩","🪛","🔗","⛓️","🪝","🧲","🔬","🔭","📡","🩺","💉","🩹","🩻","🩼","🩺","🧬","🦠","🧪","🧫","🧲","🔮","🪄","🧿","📿","💊","🚑","🏮","🪔","💡","🔦","🕯️","🪑","🚽","🚰","🛁","🛏️","🛋️","🚪","🪞","🪟","🖼️","🪆","🪅","🎎","🎏","🎐","🎑","🧧","🎀","🎁","🎊","🎉","🎈","🎋","🎍","🎇","🎆","🏮"]
 };
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -531,21 +749,33 @@ function aColor(n){
     EMOJIS[cats[i]].forEach(function(em){
       var s=document.createElement("span");
       s.className="e"; s.textContent=em;
-      s.onclick=function(){
-        var inp=$("msg-input");
-        inp.focus();
-        // Insert at cursor position in contenteditable
-        var sel=window.getSelection();
-        if(sel.rangeCount){
-          var range=sel.getRangeAt(0);
-          range.deleteContents();
-          range.insertNode(document.createTextNode(em));
-          range.collapse(false);
-          sel.removeAllRanges(); sel.addRange(range);
-        } else {
-          inp.innerText+=em;
-        }
-      };
+      (function(emoji){
+        s.onclick = function(){
+          // Check rain toggle
+          var rainOn = document.getElementById("rain-toggle") && document.getElementById("rain-toggle").checked;
+          if(rainOn){
+            triggerRain(emoji, 100, 3000);
+            // Flash the emoji picker briefly
+            var picker = document.getElementById("emoji-picker");
+            picker.style.transform = "scale(1.04)";
+            setTimeout(function(){ picker.style.transform = ""; }, 200);
+            return;
+          }
+          // Normal insert
+          var inp = $("msg-input");
+          inp.focus();
+          var sel = window.getSelection();
+          if(sel && sel.rangeCount){
+            var range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(document.createTextNode(emoji));
+            range.collapse(false);
+            sel.removeAllRanges(); sel.addRange(range);
+          } else {
+            inp.innerText += emoji;
+          }
+        };
+      })(em);
       grid.appendChild(s);
     });
   }
@@ -689,7 +919,10 @@ function openRoom(otherUser, otherName){
   $("chat-view-active").style.display      = "flex";
   $("btn-delete-chat").style.display       = "flex";
   document.getElementById("typing-indicator").innerHTML = "";
+  document.getElementById("reply-bar").classList.remove("show");
+  replyingTo = null;
   watchTyping(otherUser);
+  listenReactions(currentRoom);
 
   // Mobile slide
   $("sidebar").classList.remove("open");
@@ -714,14 +947,35 @@ function openRoom(otherUser, otherName){
     var mine=msg.from===me.username;
     var row=document.createElement("div");
     row.className="msg-row "+(mine?"mine":"theirs");
-    var bubbleContent = msg.type === "gif"
-      ? '<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>'
-      : '<span style="display:block;padding-right:'+(msg.type==="gif"?"0":"44px")+';">'+escHtml(msg.text)+'</span>';
+    row.dataset.key = snap.key;
+    // Quoted reply block
+    var quotedHtml = "";
+    if(msg.replyTo){
+      quotedHtml = '<div class="quoted" data-replykey="'+escHtml(msg.replyTo.key)+'">'+
+        '<div class="quoted-name">'+escHtml(msg.replyTo.from)+'</div>'+
+        '<div class="quoted-text">'+escHtml(msg.replyTo.text)+'</div>'+
+      '</div>';
+    }
+    var isMedia = msg.type==="gif" || msg.type==="image";
+    var bubbleContent;
+    if(msg.type==="gif"){
+      bubbleContent = '<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>';
+    } else if(msg.type==="image"){
+      bubbleContent = '<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
+    } else {
+      bubbleContent = '<span class="bubble-text" style="display:block;padding-right:44px;">'+linkifyText(msg.text)+'</span>';
+    }
     row.innerHTML=
-      '<div class="bubble" style="'+(msg.type==="gif"?"padding:4px 4px 20px;":"")+'">'+
+      '<div class="bubble" style="'+(isMedia?"padding:4px 4px 20px;":"")+'">'+
+        quotedHtml+
         bubbleContent+
         '<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick">✓✓</span>':'')+'</span>'+
       '</div>';
+    // Fetch link preview for text messages containing URLs
+    if(msg.type!=="gif" && msg.type!=="image" && msg.text && hasUrl(msg.text)){
+      var url = extractUrl(msg.text);
+      if(url) fetchLinkPreview(url, row.querySelector(".bubble"));
+    }
     // Delete: long-press (mobile) or right-click (desktop) — only own messages
     if(mine){
       var msgKey = snap.key;
@@ -742,8 +996,24 @@ function openRoom(otherUser, otherName){
       row.addEventListener("touchend",  function(){ clearTimeout(holdTimer); });
       row.addEventListener("touchmove", function(){ clearTimeout(holdTimer); });
     }
+    var arrow = document.createElement("div");
+    arrow.className = "reply-arrow";
+    arrow.textContent = "↩";
+    row.appendChild(arrow);
     ml.appendChild(row);
     ml.scrollTop=ml.scrollHeight;
+    var rOn = document.getElementById('rain-toggle') && document.getElementById('rain-toggle').checked;
+    if(rOn && !mine && msg.text && isEmojiOnly(msg.text)){ triggerRain(extractFirstEmoji(msg.text),100,3000); }
+    // Apply any already-loaded reaction for this message
+    if(reactRef){
+      reactRef.child(snap.key).once("value", function(rSnap){
+        var msgReacts = rSnap.val() || {};
+        if(Object.keys(msgReacts).length > 0){
+          var bubble = row.querySelector(".bubble");
+          if(bubble) renderReactions(snap.key, msgReacts, bubble);
+        }
+      });
+    }
   });
 }
 
@@ -757,7 +1027,13 @@ function sendMessage(){
   $("emoji-picker").classList.remove("open");
   clearTimeout(typingTimeout);
   setTyping(false);
-  db.ref("messages/"+currentRoom).push({from:me.username,text:text,ts:Date.now()});
+  var msgData = {from:me.username, text:text, ts:Date.now()};
+  if(replyingTo) msgData.replyTo = { key:replyingTo.key, from:replyingTo.from, text:replyingTo.text };
+  db.ref("messages/"+currentRoom).push(msgData);
+  replyingTo = null;
+  document.getElementById("reply-bar").classList.remove("show");
+  var rainOn = document.getElementById('rain-toggle') && document.getElementById('rain-toggle').checked;
+  if(rainOn && isEmojiOnly(text)){ triggerRain(extractFirstEmoji(text),100,3000); }
 }
 $("btn-send").addEventListener("click",sendMessage);
 $("msg-input").addEventListener("keydown",function(e){
@@ -812,6 +1088,27 @@ window.addEventListener("load",function(){
   $("auth-screen").style.display="flex";
 });
 
+// Block pull-to-refresh on mobile
+document.addEventListener("touchstart", function(e){
+  if(e.touches.length !== 1) return;
+  window.__touchStartY = e.touches[0].clientY;
+}, {passive:true});
+
+document.addEventListener("touchmove", function(e){
+  var scrollEl = e.target.closest("#messages-list, #rooms-list, #emoji-grid, #gif-grid");
+  if(scrollEl){
+    // Allow scrolling inside scrollable containers but block at boundaries
+    var atTop = scrollEl.scrollTop <= 0;
+    var dy = e.touches[0].clientY - (window.__touchStartY||0);
+    if(atTop && dy > 0){
+      e.preventDefault(); // block pull-to-refresh when at top of scrollable
+    }
+    return;
+  }
+  // Block all other pull-down gestures
+  e.preventDefault();
+}, {passive:false});
+
 
 
 
@@ -847,70 +1144,76 @@ document.getElementById("msg-input").addEventListener("blur", function(){
 });
 
 
-// ── GIF panel ─────────────────────────────────────────────────────────────────
-// Uses allorigins.win CORS proxy so file:// local pages can reach GIPHY
-var GIPHY_KEY = "dc6zaTOxFJmzC";
+// ── GIF panel (Tenor v1 — official free demo key, no registration needed) ────
+// Tenor v1 demo key "LIVDSRZULELA" is officially documented by Google/Tenor
+// for development use. For production get a free key at tenor.com/developer
+var TENOR_KEY = "LIVDSRZULELA"; // official Tenor demo key
+
+function renderGifResults(results, grid){
+  grid.innerHTML = "";
+  if(!results || !results.length){
+    grid.innerHTML = '<div class="gif-loading">No GIFs found</div>'; return;
+  }
+  results.forEach(function(gif){
+    // Tenor v1 media array
+    var media  = gif.media && gif.media[0];
+    if(!media) return;
+    var preview = (media.tinygif  && media.tinygif.url)  ||
+                  (media.mediumgif&& media.mediumgif.url)||
+                  (media.gif      && media.gif.url) || "";
+    var full    = (media.gif      && media.gif.url)      ||
+                  (media.mediumgif&& media.mediumgif.url) || preview;
+    if(!preview) return;
+
+    var img = document.createElement("img");
+    img.className = "gif-item";
+    img.src       = preview;
+    img.alt       = gif.title || "GIF";
+    img.loading   = "lazy";
+    img.addEventListener("click", function(){
+      sendGif(full);
+      document.getElementById("gif-panel").classList.remove("open");
+    });
+    grid.appendChild(img);
+  });
+}
 
 function searchGifs(query){
   var grid = document.getElementById("gif-grid");
   grid.innerHTML = '<div class="gif-loading">Loading…</div>';
 
   var apiUrl = query
-    ? "https://api.giphy.com/v1/gifs/search?api_key="+GIPHY_KEY+"&q="+encodeURIComponent(query)+"&limit=16&rating=g&lang=en"
-    : "https://api.giphy.com/v1/gifs/trending?api_key="+GIPHY_KEY+"&limit=16&rating=g";
+    ? "https://g.tenor.com/v1/search?q="+encodeURIComponent(query)+"&key="+TENOR_KEY+"&limit=20&media_filter=minimal&contentfilter=medium"
+    : "https://g.tenor.com/v1/trending?key="+TENOR_KEY+"&limit=20&media_filter=minimal&contentfilter=medium";
 
-  // Wrap with CORS proxy so file:// origin is accepted
-  var proxied = "https://api.allorigins.win/get?url=" + encodeURIComponent(apiUrl);
-
-  fetch(proxied)
-    .then(function(r){ return r.json(); })
-    .then(function(wrapper){
-      var data = JSON.parse(wrapper.contents);
-      grid.innerHTML="";
-      if(!data.data||!data.data.length){
-        grid.innerHTML='<div class="gif-loading">No GIFs found</div>'; return;
-      }
-      data.data.forEach(function(gif){
-        var preview = gif.images.fixed_height_small.url;
-        var full    = gif.images.original.url;
-        var img = document.createElement("img");
-        img.className = "gif-item";
-        img.src = preview;
-        img.alt = gif.title || "GIF";
-        img.loading = "lazy";
-        img.addEventListener("click", function(){
-          sendGif(full);
-          document.getElementById("gif-panel").classList.remove("open");
-        });
-        grid.appendChild(img);
-      });
+  // Try direct first (works on https:// hosted pages)
+  fetch(apiUrl)
+    .then(function(r){
+      if(!r.ok) throw new Error("status "+r.status);
+      return r.json();
     })
-    .catch(function(e){
-      // Fallback: try direct fetch (works if hosted on a real domain)
-      fetch(apiUrl)
+    .then(function(data){ renderGifResults(data.results, grid); })
+    .catch(function(){
+      // Fallback: CORS proxy (for file:// or restricted origins)
+      var proxied = "https://api.allorigins.win/get?url="+encodeURIComponent(apiUrl);
+      fetch(proxied)
         .then(function(r){ return r.json(); })
-        .then(function(data){
-          grid.innerHTML="";
-          if(!data.data||!data.data.length){ grid.innerHTML='<div class="gif-loading">No GIFs found</div>'; return; }
-          data.data.forEach(function(gif){
-            var preview = gif.images.fixed_height_small.url;
-            var full    = gif.images.original.url;
-            var img = document.createElement("img");
-            img.className = "gif-item";
-            img.src = preview;
-            img.alt = gif.title||"GIF";
-            img.loading = "lazy";
-            img.addEventListener("click", function(){
-              sendGif(full);
-              document.getElementById("gif-panel").classList.remove("open");
-            });
-            grid.appendChild(img);
-          });
+        .then(function(w){
+          var data = typeof w.contents==="string" ? JSON.parse(w.contents) : w.contents;
+          renderGifResults(data.results, grid);
         })
         .catch(function(){
-          grid.innerHTML='<div class="gif-loading" style="font-size:12px;padding:16px 8px;">⚠️ GIF search requires the file to be hosted on a server.<br><br>To enable GIFs, upload the HTML file to any web host (GitHub Pages, Netlify etc.) or run a local server.</div>';
+          // Last fallback: corsproxy.io
+          fetch("https://corsproxy.io/?"+encodeURIComponent(apiUrl))
+            .then(function(r){ return r.json(); })
+            .then(function(data){ renderGifResults(data.results, grid); })
+            .catch(function(){
+              grid.innerHTML='<div class="gif-loading" style="font-size:12px;line-height:1.6;padding:12px;">'+
+                '😔 GIFs failed to load.<br><br>'+
+                'Get a free key at <b>tenor.com/developer</b><br>'+
+                'then replace TENOR_KEY in the HTML file.</div>';
+            });
         });
-      console.error("GIF proxy error:", e);
     });
 }
 
@@ -1015,6 +1318,498 @@ msgInputEl.addEventListener("drop", function(e){
     e.preventDefault();
   }
 });
+
+
+// ── Image send ────────────────────────────────────────────────────────────────
+document.getElementById("btn-img").addEventListener("click", function(){
+  document.getElementById("img-file-input").click();
+});
+
+document.getElementById("img-file-input").addEventListener("change", function(){
+  var file = this.files[0];
+  if(!file) return;
+  if(!currentRoom || !me){ alert("Open a chat first."); return; }
+  if(file.size > 2 * 1024 * 1024){
+    alert("Image too large. Please pick an image under 2MB.");
+    this.value=""; return;
+  }
+
+  // Show sending placeholder in chat
+  var ml = document.getElementById("messages-list");
+  var placeholder = document.createElement("div");
+  placeholder.className = "msg-row mine";
+  placeholder.innerHTML = '<div class="bubble"><span class="upload-progress">📤 Sending image…</span></div>';
+  ml.appendChild(placeholder);
+  ml.scrollTop = ml.scrollHeight;
+
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var base64 = ev.target.result; // data:image/jpeg;base64,...
+    db.ref("messages/"+currentRoom).push({
+      from: me.username,
+      type: "image",
+      url:  base64,
+      ts:   Date.now()
+    }, function(err){
+      placeholder.remove();
+      if(err) alert("Failed to send image: "+err.message);
+    });
+  };
+  reader.readAsDataURL(file);
+  this.value = ""; // reset so same file can be picked again
+});
+
+// ── Fullscreen image viewer ───────────────────────────────────────────────────
+
+window.scrollToMsg = function(key){
+  var el = document.querySelector('.msg-row[data-key="'+key+'"]');
+  if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.style.background="rgba(59,130,246,.15)"; setTimeout(function(){el.style.background="";},1000); }
+};
+
+// Event delegation for quoted reply clicks
+document.getElementById("messages-list").addEventListener("click", function(e){
+  var q = e.target.closest(".quoted");
+  if(q && q.dataset.replykey) scrollToMsg(q.dataset.replykey);
+});
+window.openImgViewer = function(src){
+  document.getElementById("img-viewer-img").src = src;
+  document.getElementById("img-viewer").classList.add("open");
+};
+
+document.getElementById("img-viewer").addEventListener("click", function(){
+  this.classList.remove("open");
+  document.getElementById("img-viewer-img").src = "";
+});
+
+document.getElementById("img-viewer-close").addEventListener("click", function(e){
+  e.stopPropagation();
+  document.getElementById("img-viewer").classList.remove("open");
+  document.getElementById("img-viewer-img").src = "";
+});
+
+// Close viewer on Escape key
+document.addEventListener("keydown", function(e){
+  if(e.key==="Escape") document.getElementById("img-viewer").classList.remove("open");
+});
+
+
+
+// ── Reply & Reactions ─────────────────────────────────────────────────────────
+var replyingTo = null; // { key, from, text }
+var ctxTarget  = null; // { key, row, mine }
+var QUICK_EMOJIS = ["❤️","😂","😮","😢","👍","🔥"];
+
+// ── Context menu ──────────────────────────────────────────────────────────────
+var ctxMenu = document.getElementById("ctx-menu");
+
+function showCtxMenu(x, y, msgKey, row, mine){
+  ctxTarget = { key: msgKey, row: row, mine: mine };
+  document.getElementById("ctx-delete").style.display = mine ? "flex" : "none";
+
+  var mw=180, mh=160;
+  ctxMenu.style.left = Math.min(x, window.innerWidth  - mw - 8)+"px";
+  ctxMenu.style.top  = Math.min(y, window.innerHeight - mh - 8)+"px";
+  ctxMenu.classList.add("show");
+
+  // hide old delete menu
+  document.getElementById("del-menu").classList.remove("show");
+}
+
+document.addEventListener("click", function(e){
+  if(!ctxMenu.contains(e.target)) ctxMenu.classList.remove("show");
+});
+document.addEventListener("touchstart", function(e){
+  if(!ctxMenu.contains(e.target)) ctxMenu.classList.remove("show");
+},{passive:true});
+
+// Quick emoji reactions
+ctxMenu.querySelectorAll(".ctx-emoji").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    if(!ctxTarget || !currentRoom) return;
+    var emoji = this.dataset.emoji;
+    var path  = "reactions/"+currentRoom+"/"+ctxTarget.key+"/"+me.username;
+    db.ref(path).once("value", function(snap){
+      if(snap.val()===emoji) db.ref(path).remove(); // toggle off
+      else db.ref(path).set(emoji);
+    });
+    ctxMenu.classList.remove("show");
+  });
+});
+
+// Reply from context menu
+document.getElementById("ctx-reply").addEventListener("click", function(){
+  if(!ctxTarget) return;
+  var bubble = ctxTarget.row.querySelector(".bubble-text");
+  var txt = bubble ? (bubble.innerText||bubble.textContent) : "📷 Image";
+  setReplyingTo(ctxTarget.key, ctxTarget.mine ? me.username : document.getElementById("room-name").textContent, txt);
+  ctxMenu.classList.remove("show");
+  document.getElementById("msg-input").focus();
+});
+
+// Delete from context menu
+document.getElementById("ctx-delete").addEventListener("click", function(){
+  if(!ctxTarget || !currentRoom) return;
+  db.ref("messages/"+currentRoom+"/"+ctxTarget.key).remove();
+  db.ref("reactions/"+currentRoom+"/"+ctxTarget.key).remove();
+  if(ctxTarget.row) ctxTarget.row.remove();
+  ctxMenu.classList.remove("show");
+});
+
+// ── Reply bar ─────────────────────────────────────────────────────────────────
+function setReplyingTo(key, fromName, text){
+  replyingTo = { key: key, from: fromName, text: text };
+  document.getElementById("reply-bar-name").textContent = fromName;
+  document.getElementById("reply-bar-text").textContent = text;
+  document.getElementById("reply-bar").classList.add("show");
+}
+
+document.getElementById("reply-bar-close").addEventListener("click", function(){
+  replyingTo = null;
+  document.getElementById("reply-bar").classList.remove("show");
+});
+
+// ── Swipe to reply (touch) ────────────────────────────────────────────────────
+var swipeStartX = 0, swipeRow = null, swipeThreshold = 60;
+
+document.getElementById("messages-list").addEventListener("touchstart", function(e){
+  var row = e.target.closest(".msg-row");
+  if(!row) return;
+  swipeRow = row;
+  swipeStartX = e.touches[0].clientX;
+},{passive:true});
+
+document.getElementById("messages-list").addEventListener("touchmove", function(e){
+  if(!swipeRow) return;
+  var dx = e.touches[0].clientX - swipeStartX;
+  var isMine = swipeRow.classList.contains("mine");
+  // mine: swipe right→left (negative), theirs: swipe left→right (positive) — both show reply
+  var progress = isMine ? -dx : dx;
+  if(progress > 10 && progress < swipeThreshold+20){
+    swipeRow.classList.add("swiping");
+    var bubble = swipeRow.querySelector(".bubble");
+    var move = Math.min(progress * 0.5, 28);
+    bubble.style.transform = isMine ? "translateX(-"+move+"px)" : "translateX("+move+"px)";
+  }
+},{passive:true});
+
+document.getElementById("messages-list").addEventListener("touchend", function(e){
+  if(!swipeRow) return;
+  var dx = e.changedTouches[0].clientX - swipeStartX;
+  var isMine = swipeRow.classList.contains("mine");
+  var progress = isMine ? -dx : dx;
+  var bubble = swipeRow.querySelector(".bubble");
+  if(bubble) bubble.style.transform = "";
+  swipeRow.classList.remove("swiping");
+
+  if(progress >= swipeThreshold){
+    // trigger reply
+    var bText = swipeRow.querySelector(".bubble-text");
+    var txt = bText ? (bText.innerText||bText.textContent).trim() : "📷 Image";
+    var msgKey = swipeRow.dataset.key;
+    var fromName = isMine ? me.username : document.getElementById("room-name").textContent;
+    setReplyingTo(msgKey, fromName, txt);
+    document.getElementById("msg-input").focus();
+  }
+  swipeRow = null;
+});
+
+// ── Long press (mobile) for context menu ─────────────────────────────────────
+var longPressTimer = null;
+document.getElementById("messages-list").addEventListener("touchstart", function(e){
+  var row = e.target.closest(".msg-row");
+  if(!row) return;
+  var t = e.touches[0];
+  longPressTimer = setTimeout(function(){
+    var mine = row.classList.contains("mine");
+    showCtxMenu(t.clientX, t.clientY, row.dataset.key, row, mine);
+    // haptic feedback if available
+    if(navigator.vibrate) navigator.vibrate(40);
+  }, 600);
+},{passive:true});
+
+document.getElementById("messages-list").addEventListener("touchend",  function(){ clearTimeout(longPressTimer); },{passive:true});
+document.getElementById("messages-list").addEventListener("touchmove", function(){ clearTimeout(longPressTimer); },{passive:true});
+
+// ── Right click (desktop) ─────────────────────────────────────────────────────
+document.getElementById("messages-list").addEventListener("contextmenu", function(e){
+  var row = e.target.closest(".msg-row");
+  if(!row) return;
+  e.preventDefault();
+  showCtxMenu(e.clientX, e.clientY, row.dataset.key, row, row.classList.contains("mine"));
+});
+
+// ── Listen to reactions for current room ─────────────────────────────────────
+var reactRef = null, reactCb = null;
+// Reaction emoji picker popup
+var reactPickerKey = null;
+var reactPickerEl = (function(){
+  var el = document.createElement("div");
+  el.id = "react-picker";
+  el.style.cssText = "position:fixed;z-index:99999;background:#1e293b;border:1px solid #334155;border-radius:14px;padding:10px;box-shadow:0 8px 32px rgba(0,0,0,.7);display:none;max-width:280px;";
+  // Common reaction emojis grid
+  var emojis = ["❤️","😂","😮","😢","👍","🔥","🎉","😍","🥺","😭","💀","🤣","✅","💯","🙏","👏","😤","🤔","😎","🥳","😘","💪","👎","😡","🤯","😱","🫶","💔","✨","🫠"];
+  emojis.forEach(function(em){
+    var s = document.createElement("span");
+    s.textContent = em;
+    s.style.cssText = "font-size:22px;cursor:pointer;padding:4px 5px;border-radius:7px;display:inline-block;transition:background .1s;";
+    s.onmouseover = function(){this.style.background="rgba(255,255,255,.1)";};
+    s.onmouseout  = function(){this.style.background="";};
+    s.addEventListener("click", function(){
+      if(!reactPickerKey || !currentRoom) return;
+      var path = "reactions/"+currentRoom+"/"+reactPickerKey+"/"+me.username;
+      db.ref(path).once("value", function(snap){
+        if(snap.val()===em) db.ref(path).remove();
+        else db.ref(path).set(em);
+      });
+      el.style.display="none"; reactPickerKey=null;
+    });
+    el.appendChild(s);
+  });
+  document.body.appendChild(el);
+  document.addEventListener("click", function(e){
+    if(e.target.closest("#react-picker")) return;
+    el.style.display="none"; reactPickerKey=null;
+  });
+  return el;
+})();
+
+function showReactPicker(e, key){
+  e.stopPropagation();
+  reactPickerKey = key;
+  var rect = e.target.getBoundingClientRect();
+  var top  = rect.top - 10;
+  var left = rect.left;
+  if(top - 120 < 0) top = rect.bottom + 10;
+  else top = top - 120;
+  left = Math.min(left, window.innerWidth - 290);
+  reactPickerEl.style.top  = Math.max(8, top)+"px";
+  reactPickerEl.style.left = Math.max(8, left)+"px";
+  reactPickerEl.style.display = "block";
+}
+
+function renderReactions(key, msgReacts, bubble){
+  var existing = bubble.querySelector(".reactions");
+  if(existing) existing.remove();
+
+  var counts = {}, myReact = null;
+  Object.keys(msgReacts).forEach(function(user){
+    var em = msgReacts[user];
+    counts[em] = (counts[em]||0)+1;
+    if(user === me.username) myReact = em;
+  });
+
+  var reactDiv = document.createElement("div");
+  reactDiv.className = "reactions";
+
+  Object.keys(counts).forEach(function(em){
+    var pill = document.createElement("span");
+    pill.className = "reaction-pill"+(myReact===em?" mine-reacted":"");
+    pill.innerHTML = em+'<span class="reaction-count">'+counts[em]+'</span>';
+    (function(emoji, msgKey){
+      pill.addEventListener("click", function(){
+        var path = "reactions/"+currentRoom+"/"+msgKey+"/"+me.username;
+        db.ref(path).once("value", function(s){
+          if(s.val()===emoji) db.ref(path).remove();
+          else db.ref(path).set(emoji);
+        });
+      });
+    })(em, key);
+    reactDiv.appendChild(pill);
+  });
+
+  // + button to add any emoji
+  var plusBtn = document.createElement("span");
+  plusBtn.className = "reaction-pill";
+  plusBtn.style.cssText = "font-size:13px;color:var(--text-secondary);padding:2px 9px;";
+  plusBtn.textContent = "+ ";
+  plusBtn.addEventListener("click", function(e){ showReactPicker(e, key); });
+  reactDiv.appendChild(plusBtn);
+
+  var meta = bubble.querySelector(".bubble-meta");
+  if(meta) bubble.insertBefore(reactDiv, meta);
+  else bubble.appendChild(reactDiv);
+}
+
+function listenReactions(roomId){
+  if(reactRef && reactCb) reactRef.off("value", reactCb);
+  reactRef = db.ref("reactions/"+roomId);
+  reactCb  = reactRef.on("value", function(snap){
+    var data = snap.val() || {};
+
+    document.querySelectorAll(".msg-row[data-key]").forEach(function(row){
+      var key = row.dataset.key;
+      var msgReacts = data[key] || {};
+      var bubble = row.querySelector(".bubble");
+      if(!bubble) return;
+
+      var hasReacts = Object.keys(msgReacts).length > 0;
+
+      // Remove existing reaction div
+      var existing = bubble.querySelector(".reactions");
+      if(existing) existing.remove();
+
+      if(hasReacts){
+        renderReactions(key, msgReacts, bubble);
+      }
+    });
+  });
+}
+
+
+// Emoji Rain
+var rainEnabled = false;
+var rainToggleBtn = document.getElementById("rain-toggle");
+// Rain toggle switch UI
+var rainTrack = document.getElementById("rain-track");
+var rainThumb = document.getElementById("rain-thumb");
+var rainLabel = document.getElementById("rain-label");
+var rainCb    = document.getElementById("rain-toggle");
+
+function updateRainToggleUI(){
+  if(rainCb.checked){
+    rainTrack.style.background = "#6366f1";
+    rainThumb.style.transform  = "translateX(16px)";
+    rainLabel.textContent      = "Rain ON";
+    rainLabel.style.color      = "#a5b4fc";
+  } else {
+    rainTrack.style.background = "#334155";
+    rainThumb.style.transform  = "translateX(0)";
+    rainLabel.textContent      = "Rain OFF";
+    rainLabel.style.color      = "var(--text-secondary)";
+  }
+}
+
+document.getElementById("rain-toggle-wrap").addEventListener("click", function(){
+  rainCb.checked = !rainCb.checked;
+  updateRainToggleUI();
+});
+
+// dummy — old toggle btn removed
+var rainToggleBtn = { addEventListener: function(){} };
+// (toggle handled above via rain-toggle-wrap click)
+
+
+function triggerRain(emoji, count, duration){
+  count    = count    || 80;
+  duration = duration || 2800;
+  for(var i=0;i<count;i++){
+    (function(){
+      setTimeout(function(){
+        var el = document.createElement("span");
+        el.className   = "emoji-rain-particle";
+        el.textContent = emoji;
+        el.style.left  = (Math.random()*100)+"vw";
+        el.style.top   = "-40px";
+        el.style.fontSize = (18+Math.random()*20)+"px";
+        var dur = 1800+Math.random()*1600;
+        el.style.animationDuration = dur+"ms";
+        document.body.appendChild(el);
+        setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, dur+100);
+      }, Math.random()*duration*0.55);
+    })();
+  }
+}
+
+function isEmojiOnly(text){
+  if(!text || !text.trim()) return false;
+  // Remove all emoji, ZWJ, variation selectors, whitespace
+  var clean = text.replace(/[\s]/g,"");
+  // Check using segmenter if available, else regex
+  try {
+    var seg = new Intl.Segmenter("en",{granularity:"grapheme"});
+    var graphemes = Array.from(seg.segment(clean)).map(function(s){return s.segment;});
+    return graphemes.every(function(g){
+      return /\p{Emoji}/u.test(g);
+    });
+  } catch(e) {
+    return /^[\p{Emoji}\p{Emoji_Presentation}\uFE0F\u20E3\u200D\s]+$/u.test(text);
+  }
+}
+
+function extractFirstEmoji(text){
+  try {
+    var seg = new Intl.Segmenter("en",{granularity:"grapheme"});
+    var first = Array.from(seg.segment(text.trim()))[0];
+    return first ? first.segment : text[0];
+  } catch(e){
+    var m = text.match(/\p{Emoji_Presentation}/u);
+    return m ? m[0] : text[0];
+  }
+}
+
+// ── URL detection & rendering ─────────────────────────────────────────────────
+var URL_REGEX = /(https?:\/\/[^\s<>"']+)/gi;
+
+function linkifyText(text){
+  return escHtml(text).replace(/(https?:\/\/[^\s<>"'&]+)/gi, function(url){
+    return '<a href="'+url+'" target="_blank" rel="noopener noreferrer">'+url+'</a>';
+  });
+}
+
+function hasUrl(text){
+  return URL_REGEX.test(text);
+}
+
+function extractUrl(text){
+  URL_REGEX.lastIndex=0;
+  var m = URL_REGEX.exec(text);
+  return m ? m[1] : null;
+}
+
+function fetchLinkPreview(url, bubbleEl){
+  // Use allorigins proxy to fetch OG meta tags
+  var proxied = "https://api.allorigins.win/get?url="+encodeURIComponent(url);
+  fetch(proxied, {signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined})
+    .then(function(r){ return r.json(); })
+    .then(function(wrapper){
+      var html = wrapper.contents || "";
+      var parser = new DOMParser();
+      var doc = parser.parseFromString(html, "text/html");
+
+      function getMeta(prop){
+        var el = doc.querySelector('meta[property="'+prop+'"]') ||
+                 doc.querySelector('meta[name="'+prop+'"]');
+        return el ? el.getAttribute("content") : "";
+      }
+
+      var title = getMeta("og:title") || doc.title || "";
+      var desc  = getMeta("og:description") || getMeta("description") || "";
+      var img   = getMeta("og:image") || "";
+      var site  = getMeta("og:site_name") || "";
+      try{ site = site || new URL(url).hostname.replace("www.",""); }catch(e){}
+
+      if(!title && !img) return; // nothing useful
+
+      var preview = document.createElement("a");
+      preview.className = "link-preview";
+      preview.href = url;
+      preview.target = "_blank";
+      preview.rel = "noopener noreferrer";
+            var imgHtml = "";
+      if(img){
+        var imgEl = document.createElement("img");
+        imgEl.className = "link-preview-img";
+        imgEl.src = img;
+        imgEl.loading = "lazy";
+        imgEl.onerror = function(){ this.style.display="none"; };
+        preview.appendChild(imgEl);
+      }
+      var body = document.createElement("div");
+      body.className = "link-preview-body";
+      body.innerHTML =
+        (site  ? '<div class="link-preview-site">'+escHtml(site)+'</div>'  : "")+
+        (title ? '<div class="link-preview-title">'+escHtml(title)+'</div>': "")+
+        (desc  ? '<div class="link-preview-desc">'+escHtml(desc)+'</div>'  : "")+
+        '<div class="link-preview-url">'+escHtml(url)+'</div>';
+      preview.appendChild(body);
+
+      // Insert preview inside bubble before the meta span
+      var meta = bubbleEl.querySelector(".bubble-meta");
+      if(meta) bubbleEl.insertBefore(preview, meta);
+      else bubbleEl.appendChild(preview);
+    })
+    .catch(function(){}); // silent fail — link still shows as clickable text
+}
 
 // ── Delete entire chat history ────────────────────────────────────────────────
 document.getElementById("btn-delete-chat").addEventListener("click", function(){
