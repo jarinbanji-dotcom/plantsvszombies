@@ -976,7 +976,9 @@ function aColor(n){
       r.collapse(false);
       savedRange = r;
     }
+    var willOpen = !$("emoji-picker").classList.contains("open");
     $("emoji-picker").classList.toggle("open");
+    if(willOpen) pushPanelState();
   });
   document.addEventListener("click", function(e){
     if(!$("emoji-picker").contains(e.target) && e.target!==$("btn-emoji"))
@@ -1354,6 +1356,45 @@ window.addEventListener("load",function(){
   $("loading-screen").style.display="none";
   $("auth-screen").style.display="flex";
 });
+
+// ── Back button closes open panels ────────────────────────────────────────────
+function pushPanelState(){
+  history.pushState({ panel: true }, "");
+}
+
+window.addEventListener("popstate", function(e){
+  // Check if any panel is open and close it instead of going back
+  var emojiPicker  = document.getElementById("emoji-picker");
+  var gifPanel     = document.getElementById("gif-panel");
+  var rpSheet      = document.getElementById("react-picker");
+  var ctxMenu      = document.getElementById("ctx-menu");
+
+  if(emojiPicker && emojiPicker.classList.contains("open")){
+    emojiPicker.classList.remove("open");
+    pushPanelState(); // re-push so next back still works
+    return;
+  }
+  if(gifPanel && gifPanel.classList.contains("open")){
+    gifPanel.classList.remove("open");
+    pushPanelState();
+    return;
+  }
+  if(rpSheet && rpSheet.style.display !== "none" && rpSheet.style.display !== ""){
+    closeReactPicker();
+    pushPanelState();
+    return;
+  }
+  if(ctxMenu && ctxMenu.classList.contains("show")){
+    ctxMenu.classList.remove("show");
+    document.querySelectorAll(".msg-row.highlighted").forEach(function(r){ r.classList.remove("highlighted"); });
+    pushPanelState();
+    return;
+  }
+  // No panel open — let browser handle back normally
+});
+
+// Push state when any panel opens so back button can catch it
+
 
 // Pull-to-refresh allowed — removed block
 
@@ -1986,7 +2027,7 @@ function openReactPicker(key){
   reactPickerKey = key;
   reactPickerEl.style.display = "block";
   document.getElementById("rp-search").value = "";
-  // small delay so animation feels smooth
+  pushPanelState();
   setTimeout(function(){
     reactPickerEl.querySelector("#rp-sheet").style.transform = "translateY(0)";
   }, 10);
