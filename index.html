@@ -2115,6 +2115,11 @@ function listenUnread(otherUser, roomItem){
     var count = parseInt(snap.val()) || 0;
     var badge = document.getElementById("badge-"+otherUser);
     if(!badge) return;
+    // If this chat is currently open, reset immediately
+    if(currentOtherUser === otherUser && count > 0){
+      db.ref("unread/"+roomKey+"/"+me.username).remove();
+      return;
+    }
     if(count > 0){
       badge.textContent = count > 99 ? "99+" : count;
       badge.style.display = "inline-flex";
@@ -2126,7 +2131,8 @@ function listenUnread(otherUser, roomItem){
 
 function resetUnread(otherUser){
   if(!me || !currentRoom) return;
-  db.ref("unread/"+currentRoom+"/"+me.username).set(0);
+  // Remove completely so it never shows stale on relogin
+  db.ref("unread/"+currentRoom+"/"+me.username).remove();
 }
 
 
