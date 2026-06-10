@@ -151,22 +151,28 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
 .bubble{
   max-width:min(65%,460px);
-  padding:9px 13px 22px;
+  padding:6px 8px 4px 10px;
   border-radius:16px;
-  position:relative;
   word-break:break-word;
   line-height:1.55;
   font-size:14px;
+  display:flex;
+  flex-direction:column;
 }
 .msg-row.mine   .bubble{background:var(--bg-bubble-me);  border-bottom-right-radius:3px;color:#fff;}
 .msg-row.theirs .bubble{background:var(--bg-bubble-them);border-bottom-left-radius:3px; color:var(--text-primary);}
 
 .bubble-meta{
-  position:absolute;bottom:5px;right:10px;
-  font-size:10.5px;color:rgba(255,255,255,.55);
+  font-size:10.5px;
+  color:rgba(255,255,255,.55);
   display:flex;align-items:center;gap:3px;
   white-space:nowrap;
+  align-self:flex-end;
+  margin-top:2px;
+  margin-bottom:1px;
+  line-height:1;
 }
+.msg-row.theirs .bubble-meta{ color:var(--text-muted); }
 .msg-row.theirs .bubble-meta{color:var(--text-muted);}
 .tick{color:var(--tick);}
 
@@ -1177,7 +1183,7 @@ function openRoom(otherUser, otherName){
     } else if(msg.type==="image"){
       bubbleContent = '<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
     } else {
-      bubbleContent = '<span class="bubble-text" style="display:block;padding-right:44px;">'+linkifyText(msg.text)+(msg.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+'</span>';
+      bubbleContent = '<span class="bubble-text" style="display:block;">'+linkifyText(msg.text)+(msg.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+'</span>';
     }
     row.innerHTML=
       '<div class="bubble" style="'+(isMedia?"padding:4px 4px 20px;":"")+'">'+
@@ -1806,48 +1812,59 @@ document.getElementById("reply-bar-close").addEventListener("click", function(){
 });
 
 // ── Swipe to reply (touch) ────────────────────────────────────────────────────
-var swipeStartX = 0, swipeRow = null, swipeThreshold = 60;
+var swipeStartX = 0, swipeStartY = 0, swipeRow = null, swipeThreshold = 75, swipeLocked = false;
 
 document.getElementById("messages-list").addEventListener("touchstart", function(e){
   var row = e.target.closest(".msg-row");
   if(!row) return;
-  swipeRow = row;
+  swipeRow   = row;
   swipeStartX = e.touches[0].clientX;
+  swipeStartY = e.touches[0].clientY;
+  swipeLocked = false;
 },{passive:true});
 
 document.getElementById("messages-list").addEventListener("touchmove", function(e){
   if(!swipeRow) return;
   var dx = e.touches[0].clientX - swipeStartX;
-  var isMine = swipeRow.classList.contains("mine");
-  // mine: swipe right→left (negative), theirs: swipe left→right (positive) — both show reply
-  var progress = isMine ? -dx : dx;
-  if(progress > 10 && progress < swipeThreshold+20){
-    swipeRow.classList.add("swiping");
-    var bubble = swipeRow.querySelector(".bubble");
-    var move = Math.min(progress * 0.5, 28);
-    bubble.style.transform = isMine ? "translateX(-"+move+"px)" : "translateX("+move+"px)";
+  var dy = e.touches[0].clientY - swipeStartY;
+
+  // If vertical movement is dominant — it's a scroll, not a swipe — cancel
+  if(!swipeLocked && Math.abs(dy) > Math.abs(dx) * 0.8){
+    swipeRow = null; return;
   }
+
+  var isMine   = swipeRow.classList.contains("mine");
+  var progress = isMine ? -dx : dx;
+
+  // Must move at least 18px horizontally before activating
+  if(progress < 18) return;
+
+  swipeLocked = true;
+  swipeRow.classList.add("swiping");
+  var bubble = swipeRow.querySelector(".bubble");
+  var move   = Math.min(progress * 0.45, 30);
+  if(bubble) bubble.style.transform = isMine ? "translateX(-"+move+"px)" : "translateX("+move+"px)";
 },{passive:true});
 
 document.getElementById("messages-list").addEventListener("touchend", function(e){
   if(!swipeRow) return;
-  var dx = e.changedTouches[0].clientX - swipeStartX;
-  var isMine = swipeRow.classList.contains("mine");
+  var dx       = e.changedTouches[0].clientX - swipeStartX;
+  var isMine   = swipeRow.classList.contains("mine");
   var progress = isMine ? -dx : dx;
-  var bubble = swipeRow.querySelector(".bubble");
+  var bubble   = swipeRow.querySelector(".bubble");
   if(bubble) bubble.style.transform = "";
   swipeRow.classList.remove("swiping");
 
-  if(progress >= swipeThreshold){
-    // trigger reply
-    var bText = swipeRow.querySelector(".bubble-text");
-    var txt = bText ? (bText.innerText||bText.textContent).trim() : "📷 Image";
-    var msgKey = swipeRow.dataset.key;
+  if(swipeLocked && progress >= swipeThreshold){
+    var bText   = swipeRow.querySelector(".bubble-text");
+    var txt     = bText ? (bText.innerText||bText.textContent).trim() : "📷 Image";
+    var msgKey  = swipeRow.dataset.key;
     var fromName = isMine ? me.username : document.getElementById("room-name").textContent;
     setReplyingTo(msgKey, fromName, txt);
     document.getElementById("msg-input").focus();
+    if(navigator.vibrate) navigator.vibrate(30);
   }
-  swipeRow = null;
+  swipeRow = null; swipeLocked = false;
 });
 
 // ── Long press (mobile) for context menu ─────────────────────────────────────
