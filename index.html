@@ -2277,11 +2277,16 @@ function applySeenTicks(seenTs){
     var tick  = row.querySelector(".tick");
     if(!tick) return;
     if(msgTs <= seenTs){
+      // Mark as seen — set data-seen so it never reverts
       tick.textContent = "✓✓";
       tick.style.color = "#60a5fa";
+      row.dataset.seen = "1";
     } else {
-      tick.textContent = "✓";
-      tick.style.color = "rgba(255,255,255,.45)";
+      // Only downgrade if not already confirmed seen
+      if(row.dataset.seen !== "1"){
+        tick.textContent = "✓";
+        tick.style.color = "rgba(255,255,255,.45)";
+      }
     }
   });
 }
