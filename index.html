@@ -1288,7 +1288,9 @@ function openRoom(otherUser, otherName){
       var msg=snap.val();
       var mine=msg.from===me.username;
       var mDate=fmtDate(msg.ts);
-      var lastSep=ml.querySelector(".date-sep:last-of-type");
+      // Find last date separator specifically
+      var allSeps=ml.querySelectorAll(".date-sep");
+      var lastSep=allSeps.length ? allSeps[allSeps.length-1] : null;
       if(!lastSep||lastSep.textContent!==mDate){
         var s=document.createElement("div");
         s.className="date-sep"; s.textContent=mDate;
