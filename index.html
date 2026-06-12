@@ -677,6 +677,10 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   flex-shrink:0;
   margin-left:auto;
 }
+.bubble-text{
+  white-space:pre-wrap;
+  word-break:break-word;
+}
 </style>
 </head>
 <body>
@@ -1152,105 +1156,145 @@ function openRoom(otherUser, otherName){
   // Clear messages
   var ml=$("messages-list");
   ml.innerHTML="";
-  var lastDate=null;
+  var PAGE=20, oldestKey=null, loadingMore=false, allLoaded=false;
 
-  msgRef = db.ref("messages/"+currentRoom).orderByChild("ts");
-  msgCb  = msgRef.on("child_added", function(snap){
-    var msg=snap.val();
-    var mDate=fmtDate(msg.ts);
-    if(mDate!==lastDate){
-      var sep=document.createElement("div");
-      sep.className="date-sep";
-      sep.textContent=mDate;
-      ml.appendChild(sep);
-      lastDate=mDate;
-    }
-    var mine=msg.from===me.username;
-    var row=document.createElement("div");
-    row.className="msg-row "+(mine?"mine":"theirs");
-    row.dataset.key = snap.key;
-    row.dataset.ts  = msg.ts || 0;
-    // Quoted reply block
-    var quotedHtml = "";
+  function buildRow(snap){
+    var msg  = snap.val ? snap.val() : snap;
+    var key  = snap.key || snap._key;
+    var mine = msg.from===me.username;
+    var row  = document.createElement("div");
+    row.className  = "msg-row "+(mine?"mine":"theirs");
+    row.dataset.key = key;
+    row.dataset.ts  = msg.ts||0;
+
+    var isMedia = msg.type==="gif"||msg.type==="image";
+    var quotedHtml="";
     if(msg.replyTo){
-      quotedHtml = '<div class="quoted" data-replykey="'+escHtml(msg.replyTo.key)+'">'+
-        '<div class="quoted-name">'+escHtml(msg.replyTo.from)+'</div>'+
-        '<div class="quoted-text">'+escHtml(msg.replyTo.text)+'</div>'+
+      quotedHtml='<div class="quoted" data-replykey="'+escHtml(msg.replyTo.key||"")+'">'+
+        '<div class="quoted-name">'+escHtml(msg.replyTo.from||"")+'</div>'+
+        '<div class="quoted-text">'+escHtml(msg.replyTo.text||"")+'</div>'+
       '</div>';
     }
-    var isMedia = msg.type==="gif" || msg.type==="image";
-    var bubbleContent;
-    if(msg.type==="gif"){
-      bubbleContent = '<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>';
-    } else if(msg.type==="image"){
-      bubbleContent = '<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
-    } else {
-      bubbleContent = '<span class="bubble-text" style="display:block;">'+linkifyText(msg.text)+(msg.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+'</span>';
-    }
+    var bc;
+    if(msg.type==="gif")   bc='<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>';
+    else if(msg.type==="image") bc='<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
+    else bc='<span class="bubble-text" style="display:block;">'+linkifyText(msg.text||"")+(msg.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+'</span>';
+
     row.innerHTML=
       '<div class="bubble" style="'+(isMedia?"padding:4px 4px 20px;":"")+'">'+
-        quotedHtml+
-        bubbleContent+
-        '<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+'</span>'+
+        quotedHtml+bc+
+        '<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+' </span>'+
       '</div>';
-    // Fetch link preview for text messages containing URLs
-    if(msg.type!=="gif" && msg.type!=="image" && msg.text && hasUrl(msg.text)){
-      var url = extractUrl(msg.text);
-      if(url) fetchLinkPreview(url, row.querySelector(".bubble"));
-    }
-    // Delete: long-press (mobile) or right-click (desktop) — only own messages
-    if(mine){
-      var msgKey = snap.key;
-      var holdTimer = null;
-      var bubble = row.querySelector(".bubble");
-      // right-click
-      row.addEventListener("contextmenu", function(e){
-        e.preventDefault();
-        showDeleteMenu(e.clientX, e.clientY, msgKey, row);
-      });
-      // long-press
-      row.addEventListener("touchstart", function(e){
-        holdTimer = setTimeout(function(){
-          var t = e.touches[0];
-          showDeleteMenu(t.clientX, t.clientY, msgKey, row);
-        }, 600);
-      });
-      row.addEventListener("touchend",  function(){ clearTimeout(holdTimer); });
-      row.addEventListener("touchmove", function(){ clearTimeout(holdTimer); });
-    }
-    var arrow = document.createElement("div");
-    arrow.className = "reply-arrow";
-    arrow.textContent = "↩";
-    row.appendChild(arrow);
-    ml.appendChild(row);
-    ml.scrollTop=ml.scrollHeight;
-    // Mark room as fully loaded after a short delay
-    clearTimeout(window._loadTimer);
-    window._loadTimer = setTimeout(function(){ window._roomFullyLoaded = true; }, 1500);
-    var rOn = document.getElementById('rain-toggle') && document.getElementById('rain-toggle').checked;
-    if(!mine && currentRoom){ markSeen(currentRoom); }
 
-    // Apply cached seen state so ticks are correct immediately on load
+    var arrow=document.createElement("div");
+    arrow.className="reply-arrow"; arrow.textContent="↩";
+    row.appendChild(arrow);
+
+    // Apply cached seen tick
     if(mine && msg.ts){
-      (function(r, msgTs){
-        var cachedSeen = window._seenCache && window._seenCache[currentRoom];
-        if(cachedSeen !== undefined){
-          var tick = r.querySelector(".tick");
-          if(tick && msgTs <= cachedSeen){ tick.textContent="✓✓"; tick.style.color="#60a5fa"; }
-        }
-      })(row, msg.ts);
+      var cs = window._seenCache && window._seenCache[currentRoom];
+      if(cs && msg.ts <= cs){ row.dataset.seen="1"; }
     }
-    // Apply any already-loaded reaction for this message
-    if(reactRef){
-      reactRef.child(snap.key).once("value", function(rSnap){
-        var msgReacts = rSnap.val() || {};
-        if(Object.keys(msgReacts).length > 0){
-          var bubble = row.querySelector(".bubble");
-          if(bubble) renderReactions(snap.key, msgReacts, bubble);
+    return row;
+  }
+
+  // Load a page of messages
+  function loadPage(beforeKey){
+    if(loadingMore || allLoaded) return;
+    loadingMore=true;
+
+    var q=db.ref("messages/"+currentRoom).orderByKey();
+    if(beforeKey) q=q.endBefore(beforeKey);
+    q=q.limitToLast(PAGE);
+
+    q.once("value",function(snap){
+      var msgs=[];
+      snap.forEach(function(d){ msgs.push(d); });
+      if(msgs.length < PAGE) allLoaded=true;
+      if(!msgs.length){ loadingMore=false; return; }
+
+      oldestKey = msgs[0].key;
+      var prevScrollH = ml.scrollHeight;
+      var frag = document.createDocumentFragment();
+
+      // Date separator for first message in this page
+      var firstDate=fmtDate(msgs[0].val().ts);
+      var sep=document.createElement("div");
+      sep.className="date-sep"; sep.textContent=firstDate;
+      frag.appendChild(sep);
+
+      var lastDate=firstDate;
+      msgs.forEach(function(d){
+        var msg=d.val();
+        var mDate=fmtDate(msg.ts);
+        if(mDate!==lastDate){
+          var s=document.createElement("div");
+          s.className="date-sep"; s.textContent=mDate;
+          frag.appendChild(s);
+          lastDate=mDate;
         }
+        frag.appendChild(buildRow(d));
       });
-    }
+
+      if(beforeKey){
+        var scrollPos = ml.scrollTop;
+        ml.insertBefore(frag, ml.firstChild);
+        // Restore scroll position exactly — new content added on top
+        ml.scrollTop = ml.scrollHeight - prevScrollH + scrollPos;
+      } else {
+        ml.appendChild(frag);
+        // Scroll to bottom — use multiple attempts to handle async rendering
+        ml.scrollTop = ml.scrollHeight;
+        setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 50);
+        setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 200);
+        setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 500);
+      }
+      loadingMore=false;
+      applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
+      if(reactRef) listenReactions(currentRoom);
+      window._roomFullyLoaded=true;
+      window._roomOpenedAt=Date.now();
+    });
+  }
+
+  loadPage(null);
+
+  // Scroll up → load older messages
+  ml.addEventListener("scroll",function(){
+    if(allLoaded||loadingMore) return;
+    if(this.scrollTop < 60) loadPage(oldestKey);
   });
+
+  // Real-time: new messages only (after room opened)
+  var newRef=null, newCb=null;
+  setTimeout(function(){
+    var openedAt=Date.now();
+    newRef=db.ref("messages/"+currentRoom).orderByKey().limitToLast(1);
+    var skipped=false;
+    newCb=newRef.on("child_added",function(snap){
+      if(!skipped){ skipped=true; return; }
+      var msg=snap.val();
+      var mine=msg.from===me.username;
+      var mDate=fmtDate(msg.ts);
+      var lastSep=ml.querySelector(".date-sep:last-of-type");
+      if(!lastSep||lastSep.textContent!==mDate){
+        var s=document.createElement("div");
+        s.className="date-sep"; s.textContent=mDate;
+        ml.appendChild(s);
+      }
+      var row=buildRow(snap);
+      ml.appendChild(row);
+      ml.scrollTop=ml.scrollHeight;
+      if(!mine){ markSeen(currentRoom); }
+      var rOn=document.getElementById('rain-toggle')&&document.getElementById('rain-toggle').checked;
+      // Apply reactions
+      if(reactRef) db.ref("reactions/"+currentRoom+"/"+snap.key).once("value",function(rs){
+        var rd=rs.val()||{};
+        if(Object.keys(rd).length) renderReactions(snap.key,rd,row.querySelector(".bubble"));
+      });
+    });
+    msgRef=newRef; msgCb=newCb;
+  },500);
 }
 
 // ── Send ──────────────────────────────────────────────────────────────────────
@@ -1303,7 +1347,29 @@ function sendMessage(){
 }
 $("btn-send").addEventListener("click",sendMessage);
 $("msg-input").addEventListener("keydown",function(e){
-  if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}
+  if(e.key==="Enter"){
+    if(e.shiftKey){
+      // Shift+Enter = new line
+      e.preventDefault();
+      document.execCommand("insertLineBreak");
+    } else {
+      // Enter alone = send
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+});
+
+// Mobile keyboard enter handling
+$("msg-input").addEventListener("beforeinput",function(e){
+  // insertParagraph = Enter on mobile keyboard (creates <div> or <p>)
+  // We convert it to a simple line break instead of sending
+  if(e.inputType==="insertParagraph"){
+    e.preventDefault();
+    document.execCommand("insertLineBreak");
+  }
+  // insertLineBreak = Shift+Enter or newline arrow — allow it
+  // deleteContentBackward/Forward = backspace/delete — allow naturally
 });
 // Typing indicator still works
 $("msg-input").addEventListener("input",function(){
