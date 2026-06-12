@@ -681,6 +681,18 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   white-space:pre-wrap;
   word-break:break-word;
 }
+
+/* ── In-chat search ── */
+.msg-highlight{
+  background:rgba(250,204,21,.35) !important;
+  border-radius:3px;
+}
+.msg-highlight-current{
+  background:rgba(250,204,21,.7) !important;
+  outline:2px solid #fbbf24;
+  border-radius:3px;
+}
+#chat-search-input:focus{ border-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -791,7 +803,17 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
         <div id="room-name">Select a chat</div>
         <div id="room-status"></div>
       </div>
+      <button class="icon-btn" id="btn-search-chat" title="Search">🔍</button>
       <button class="icon-btn" id="btn-delete-chat" title="Delete chat history" style="display:none;color:#ef4444;">🗑️</button>
+    </div>
+
+    <!-- In-chat search bar -->
+    <div id="chat-search-bar" style="display:none;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-sidebar);border-bottom:1px solid var(--border);flex-shrink:0;">
+      <input id="chat-search-input" placeholder="Search messages…" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13.5px;outline:none;font-family:var(--font);"/>
+      <span id="chat-search-count" style="font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
+      <button class="icon-btn" id="chat-search-prev" title="Previous">↑</button>
+      <button class="icon-btn" id="chat-search-next" title="Next">↓</button>
+      <button class="icon-btn" id="chat-search-close" title="Close">✕</button>
     </div>
 
     <div id="chat-view-placeholder">
@@ -1139,6 +1161,7 @@ function openRoom(otherUser, otherName){
   $("chat-view-active").style.display      = "flex";
   $("btn-delete-chat").style.display       = "flex";
   document.getElementById("typing-indicator").innerHTML = "";
+  closeSearch();
   document.getElementById("reply-bar").classList.remove("show");
   replyingTo = null;
   watchTyping(otherUser);
@@ -1156,159 +1179,203 @@ function openRoom(otherUser, otherName){
   // Clear messages
   var ml=$("messages-list");
   ml.innerHTML="";
-  var PAGE=20, oldestKey=null, loadingMore=false, allLoaded=false;
 
-  function buildRow(snap){
-    var msg  = snap.val ? snap.val() : snap;
-    var key  = snap.key || snap._key;
-    var mine = msg.from===me.username;
-    var row  = document.createElement("div");
-    row.className  = "msg-row "+(mine?"mine":"theirs");
-    row.dataset.key = key;
-    row.dataset.ts  = msg.ts||0;
+  // Remove old loading indicator if exists
+  var oldInd = document.getElementById("msg-loading");
+  if(oldInd) oldInd.remove();
 
-    var isMedia = msg.type==="gif"||msg.type==="image";
-    var quotedHtml="";
-    if(msg.replyTo){
-      quotedHtml='<div class="quoted" data-replykey="'+escHtml(msg.replyTo.key||"")+'">'+
-        '<div class="quoted-name">'+escHtml(msg.replyTo.from||"")+'</div>'+
-        '<div class="quoted-text">'+escHtml(msg.replyTo.text||"")+'</div>'+
-      '</div>';
-    }
-    var bc;
-    if(msg.type==="gif")   bc='<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>';
-    else if(msg.type==="image") bc='<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
-    else bc='<span class="bubble-text" style="display:block;">'+linkifyText(msg.text||"")+(msg.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+'</span>';
+  var lastDate = null;
 
-    row.innerHTML=
-      '<div class="bubble" style="'+(isMedia?"padding:4px 4px 20px;":"")+'">'+
-        quotedHtml+bc+
-        '<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+' </span>'+
-      '</div>';
+  // Check if user has deleted this chat before loading
+  var loadRoom = currentRoom;
+  db.ref("deleted/"+currentRoom+"/"+me.username).once("value", function(delSnap){
+    var deletedAt = delSnap.val() || 0;
 
-    var arrow=document.createElement("div");
-    arrow.className="reply-arrow"; arrow.textContent="↩";
-    row.appendChild(arrow);
+  // Load last 150 messages once
+  db.ref("messages/"+loadRoom).orderByKey().limitToLast(150)
+    .once("value", function(snap){
+      snap.forEach(function(d){
+        var msg  = d.val();
+        // Skip messages that existed before user deleted chat
+        if(msg.ts && msg.ts <= deletedAt) return;
+        var mine = msg.from === me.username;
+        var mDate = fmtDate(msg.ts);
 
-    // Apply cached seen tick
-    if(mine && msg.ts){
-      var cs = window._seenCache && window._seenCache[currentRoom];
-      if(cs && msg.ts <= cs){ row.dataset.seen="1"; }
-    }
-    return row;
-  }
-
-  // Load a page of messages
-  // Loading indicator at top
-  var loadingIndicator = document.createElement("div");
-  loadingIndicator.id = "msg-loading";
-  loadingIndicator.style.cssText = "text-align:center;padding:10px;color:var(--text-muted);font-size:12px;display:none;";
-  loadingIndicator.textContent = "Loading...";
-  ml.parentNode.insertBefore(loadingIndicator, ml);
-
-  function loadPage(beforeKey){
-    if(loadingMore || allLoaded) return;
-    loadingMore=true;
-    loadingIndicator.style.display = "block";
-
-    var q=db.ref("messages/"+currentRoom).orderByKey();
-    if(beforeKey) q=q.endBefore(beforeKey);
-    q=q.limitToLast(PAGE);
-
-    q.once("value",function(snap){
-      var msgs=[];
-      snap.forEach(function(d){ msgs.push(d); });
-      if(msgs.length < PAGE) allLoaded=true;
-      if(!msgs.length){ loadingMore=false; loadingIndicator.style.display="none"; return; }
-
-      oldestKey = msgs[0].key;
-      var prevScrollH = ml.scrollHeight;
-      var frag = document.createDocumentFragment();
-
-      // Date separator for first message in this page
-      var firstDate=fmtDate(msgs[0].val().ts);
-      var sep=document.createElement("div");
-      sep.className="date-sep"; sep.textContent=firstDate;
-      frag.appendChild(sep);
-
-      var lastDate=firstDate;
-      msgs.forEach(function(d){
-        var msg=d.val();
-        var mDate=fmtDate(msg.ts);
-        if(mDate!==lastDate){
-          var s=document.createElement("div");
-          s.className="date-sep"; s.textContent=mDate;
-          frag.appendChild(s);
-          lastDate=mDate;
+        if(mDate !== lastDate){
+          var sep = document.createElement("div");
+          sep.className = "date-sep";
+          sep.textContent = mDate;
+          ml.appendChild(sep);
+          lastDate = mDate;
         }
-        frag.appendChild(buildRow(d));
+
+        var row = document.createElement("div");
+        row.className   = "msg-row "+(mine?"mine":"theirs");
+        row.dataset.key = d.key;
+        row.dataset.ts  = msg.ts||0;
+
+        var isMedia = msg.type==="gif"||msg.type==="image";
+        var qHtml = "";
+        if(msg.replyTo){
+          qHtml = '<div class="quoted" data-replykey="'+escHtml(msg.replyTo.key||"")+'">'
+            +'<div class="quoted-name">'+escHtml(msg.replyTo.from||"")+'</div>'
+            +'<div class="quoted-text">'+escHtml(msg.replyTo.text||"")+'</div></div>';
+        }
+        var bc;
+        if(msg.type==="gif")        bc='<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>';
+        else if(msg.type==="image") bc='<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
+        else bc='<span class="bubble-text" style="display:block;">'+linkifyText(msg.text||"")+(msg.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+'</span>';
+
+        row.innerHTML =
+          '<div class="bubble" style="'+( isMedia?"padding:4px 4px 20px;":"")+'">'+
+            qHtml+bc+
+            '<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">\u2713</span>':'')+' </span>'+
+          '</div>';
+
+        var arrow = document.createElement("div");
+        arrow.className = "reply-arrow";
+        arrow.textContent = "\u21a9";
+        row.appendChild(arrow);
+        ml.appendChild(row);
+
+        // Apply cached seen tick
+        if(mine && msg.ts){
+          var cs = window._seenCache && window._seenCache[currentRoom];
+          if(cs && msg.ts <= cs){ row.dataset.seen="1"; }
+        }
       });
 
-      if(beforeKey){
-        var scrollPos = ml.scrollTop;
-        ml.insertBefore(frag, ml.firstChild);
-        // Restore scroll position exactly — new content added on top
-        ml.scrollTop = ml.scrollHeight - prevScrollH + scrollPos;
-      } else {
-        ml.appendChild(frag);
-        // Scroll to bottom — use multiple attempts to handle async rendering
-        ml.scrollTop = ml.scrollHeight;
-        setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 50);
-        setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 200);
-        setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 500);
-      }
-      loadingMore=false;
-      loadingIndicator.style.display = "none";
+      // Scroll to bottom
+      ml.scrollTop = ml.scrollHeight;
+      setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 100);
+      setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 400);
+
       applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
-      if(reactRef) listenReactions(currentRoom);
-      window._roomFullyLoaded=true;
-      window._roomOpenedAt=Date.now();
+      listenReactions(currentRoom);
+      window._roomFullyLoaded = true;
+      window._roomOpenedAt   = Date.now();
+
+      // Store oldest key for load-more
+      var firstRow = ml.querySelector(".msg-row[data-key]");
+      window._oldestMsgKey = firstRow ? firstRow.dataset.key : null;
+      window._loadMoreRoom = currentRoom;
+      window._loadingMore  = false;
+      window._deletedAt    = deletedAt;
     });
-  }
+  }); // end deletedAt check
 
-  loadPage(null);
+  // Load more when scrolled to top
+  ml.onscroll = function(){
+    if(window._loadMoreRoom !== currentRoom) return;
+    if(window._loadingMore) return;
+    if(ml.scrollTop > 60) return;
+    if(!window._oldestMsgKey) return;
 
-  // Scroll up → load older messages (use both ml and window for mobile)
-  function checkScrollTop(){
-    if(allLoaded||loadingMore) return;
-    if(ml.scrollTop < 100) loadPage(oldestKey);
-  }
-  ml.addEventListener("scroll", checkScrollTop, {passive:true});
-  // Mobile fallback: sometimes scroll fires on the container not ml
-  document.getElementById("chat-view-active").addEventListener("scroll", checkScrollTop, {passive:true});
+    window._loadingMore = true;
+    var loadRoom = currentRoom;
+    var beforeKey = window._oldestMsgKey;
 
-  // Real-time: new messages only (after room opened)
-  var newRef=null, newCb=null;
+    db.ref("messages/"+loadRoom).orderByKey().endBefore(beforeKey).limitToLast(150)
+      .once("value", function(snap){
+        if(loadRoom !== currentRoom){ window._loadingMore=false; return; }
+
+        var msgs=[];
+        snap.forEach(function(d){ msgs.push({key:d.key,val:d.val()}); });
+        window._loadingMore = false;
+
+        if(!msgs.length) return;
+        window._oldestMsgKey = msgs[0].key;
+
+        var prevH = ml.scrollHeight;
+        var frag  = document.createDocumentFragment();
+        var fLastDate = null;
+
+        var deletedAt = window._deletedAt || 0;
+        msgs.forEach(function(m){
+          if(m.val.ts && m.val.ts <= deletedAt) return; // skip deleted
+          var mDate = fmtDate(m.val.ts);
+          if(mDate !== fLastDate){
+            var sep = document.createElement("div");
+            sep.className="date-sep"; sep.textContent=mDate;
+            frag.appendChild(sep);
+            fLastDate = mDate;
+          }
+          var mine = m.val.from === me.username;
+          var row  = document.createElement("div");
+          row.className   = "msg-row "+(mine?"mine":"theirs");
+          row.dataset.key = m.key;
+          row.dataset.ts  = m.val.ts||0;
+          var isMedia = m.val.type==="gif"||m.val.type==="image";
+          var qHtml="";
+          if(m.val.replyTo) qHtml='<div class="quoted" data-replykey="'+escHtml(m.val.replyTo.key||"")+'"><div class="quoted-name">'+escHtml(m.val.replyTo.from||"")+'</div><div class="quoted-text">'+escHtml(m.val.replyTo.text||"")+'</div></div>';
+          var bc;
+          if(m.val.type==="gif")        bc='<img class="msg-gif" src="'+escHtml(m.val.url)+'" alt="GIF" loading="lazy"/>';
+          else if(m.val.type==="image") bc='<img class="msg-img" src="'+escHtml(m.val.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
+          else bc='<span class="bubble-text" style="display:block;">'+linkifyText(m.val.text||"")+(m.val.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+' </span>';
+          row.innerHTML='<div class="bubble" style="'+(isMedia?"padding:4px 4px 20px;":"")+'">'+qHtml+bc+'<span class="bubble-meta">'+fmtTime(m.val.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+' </span></div>';
+          var arrow=document.createElement("div");
+          arrow.className="reply-arrow"; arrow.textContent="↩";
+          row.appendChild(arrow);
+          frag.appendChild(row);
+        });
+
+        ml.insertBefore(frag, ml.firstChild);
+        ml.scrollTop = ml.scrollHeight - prevH;
+        applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
+      });
+  };
+
+  // Real-time: new messages only
+  var newRef = null, newCb = null, newSkipped = false;
   setTimeout(function(){
-    var openedAt=Date.now();
-    newRef=db.ref("messages/"+currentRoom).orderByKey().limitToLast(1);
-    var skipped=false;
-    newCb=newRef.on("child_added",function(snap){
-      if(!skipped){ skipped=true; return; }
-      var msg=snap.val();
-      var mine=msg.from===me.username;
-      var mDate=fmtDate(msg.ts);
-      // Find last date separator specifically
-      var allSeps=ml.querySelectorAll(".date-sep");
-      var lastSep=allSeps.length ? allSeps[allSeps.length-1] : null;
-      if(!lastSep||lastSep.textContent!==mDate){
-        var s=document.createElement("div");
-        s.className="date-sep"; s.textContent=mDate;
+    if(currentRoom !== currentRoom) return;
+    newRef = db.ref("messages/"+currentRoom).orderByKey().limitToLast(1);
+    newSkipped = false;
+    newCb = newRef.on("child_added", function(snap){
+      if(!newSkipped){ newSkipped=true; return; }
+      var msg  = snap.val();
+      var mine = msg.from === me.username;
+      var mDate = fmtDate(msg.ts);
+      var seps  = ml.querySelectorAll(".date-sep");
+      var lastSep = seps.length ? seps[seps.length-1] : null;
+      if(!lastSep || lastSep.textContent !== mDate){
+        var s = document.createElement("div");
+        s.className = "date-sep"; s.textContent = mDate;
         ml.appendChild(s);
       }
-      var row=buildRow(snap);
+      var row = document.createElement("div");
+      row.className   = "msg-row "+(mine?"mine":"theirs");
+      row.dataset.key = snap.key;
+      row.dataset.ts  = msg.ts||0;
+      var isMedia = msg.type==="gif"||msg.type==="image";
+      var qHtml = "";
+      if(msg.replyTo){
+        qHtml = '<div class="quoted" data-replykey="'+escHtml(msg.replyTo.key||"")+'">'
+          +'<div class="quoted-name">'+escHtml(msg.replyTo.from||"")+'</div>'
+          +'<div class="quoted-text">'+escHtml(msg.replyTo.text||"")+'</div></div>';
+      }
+      var bc;
+      if(msg.type==="gif")        bc='<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>';
+      else if(msg.type==="image") bc='<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
+      else bc='<span class="bubble-text" style="display:block;">'+linkifyText(msg.text||"")+(msg.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+'</span>';
+      row.innerHTML =
+        '<div class="bubble" style="'+( isMedia?"padding:4px 4px 20px;":"")+'">'+
+          qHtml+bc+
+          '<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">\u2713</span>':'')+' </span>'+
+        '</div>';
+      var arrow = document.createElement("div");
+      arrow.className="reply-arrow"; arrow.textContent="\u21a9";
+      row.appendChild(arrow);
       ml.appendChild(row);
-      ml.scrollTop=ml.scrollHeight;
-      if(!mine){ markSeen(currentRoom); }
-      var rOn=document.getElementById('rain-toggle')&&document.getElementById('rain-toggle').checked;
-      // Apply reactions
+      ml.scrollTop = ml.scrollHeight;
+      if(!mine) markSeen(currentRoom);
       if(reactRef) db.ref("reactions/"+currentRoom+"/"+snap.key).once("value",function(rs){
         var rd=rs.val()||{};
         if(Object.keys(rd).length) renderReactions(snap.key,rd,row.querySelector(".bubble"));
       });
     });
-    msgRef=newRef; msgCb=newCb;
-  },500);
+    msgRef = newRef; msgCb = newCb;
+  }, 500);
 }
 
 // ── Send ──────────────────────────────────────────────────────────────────────
@@ -1363,27 +1430,41 @@ $("btn-send").addEventListener("click",sendMessage);
 $("msg-input").addEventListener("keydown",function(e){
   if(e.key==="Enter"){
     if(e.shiftKey){
-      // Shift+Enter = new line
       e.preventDefault();
       document.execCommand("insertLineBreak");
     } else {
-      // Enter alone = send
-      e.preventDefault();
-      sendMessage();
+      // On desktop: Enter sends. On mobile: Enter adds newline
+      var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if(isMobile){
+        // Let mobile keyboard handle it naturally (adds newline)
+      } else {
+        e.preventDefault();
+        sendMessage();
+      }
     }
   }
 });
 
-// Mobile keyboard enter handling
+// Mobile keyboard: return key always adds newline, never sends
 $("msg-input").addEventListener("beforeinput",function(e){
-  // insertParagraph = Enter on mobile keyboard (creates <div> or <p>)
-  // We convert it to a simple line break instead of sending
-  if(e.inputType==="insertParagraph"){
+  if(e.inputType==="insertParagraph" || e.inputType==="insertLineBreak"){
     e.preventDefault();
-    document.execCommand("insertLineBreak");
+    // Insert a real newline at cursor
+    var sel = window.getSelection();
+    if(sel && sel.rangeCount){
+      var range = sel.getRangeAt(0);
+      range.deleteContents();
+      var br = document.createElement("br");
+      range.insertNode(br);
+      // Move cursor after the br
+      var after = document.createTextNode("\u200B"); // zero-width space to allow cursor
+      br.parentNode.insertBefore(after, br.nextSibling);
+      range.setStartAfter(after);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
   }
-  // insertLineBreak = Shift+Enter or newline arrow — allow it
-  // deleteContentBackward/Forward = backspace/delete — allow naturally
 });
 // Typing indicator still works
 $("msg-input").addEventListener("input",function(){
@@ -1514,6 +1595,98 @@ document.getElementById("messages-list").addEventListener("click", function(e){
   }
 });
 
+
+// ── In-chat message search ────────────────────────────────────────────────────
+var searchResults = [], searchIdx = 0;
+
+document.getElementById("btn-search-chat").addEventListener("click", function(){
+  var bar = document.getElementById("chat-search-bar");
+  var isOpen = bar.style.display !== "none";
+  if(isOpen){
+    closeSearch();
+  } else {
+    bar.style.display = "flex";
+    document.getElementById("chat-search-input").focus();
+  }
+});
+
+function closeSearch(){
+  document.getElementById("chat-search-bar").style.display = "none";
+  document.getElementById("chat-search-input").value = "";
+  document.getElementById("chat-search-count").textContent = "";
+  clearSearchHighlights();
+  searchResults = []; searchIdx = 0;
+}
+
+document.getElementById("chat-search-close").addEventListener("click", closeSearch);
+
+function clearSearchHighlights(){
+  document.querySelectorAll(".msg-highlight,.msg-highlight-current").forEach(function(el){
+    el.classList.remove("msg-highlight","msg-highlight-current");
+  });
+}
+
+function doSearch(q){
+  clearSearchHighlights();
+  searchResults = []; searchIdx = 0;
+
+  if(!q.trim()){
+    document.getElementById("chat-search-count").textContent = "";
+    return;
+  }
+
+  var lower = q.toLowerCase();
+  document.querySelectorAll(".msg-row .bubble-text").forEach(function(el){
+    if((el.innerText||el.textContent).toLowerCase().includes(lower)){
+      el.classList.add("msg-highlight");
+      searchResults.push(el.closest(".msg-row"));
+    }
+  });
+
+  if(!searchResults.length){
+    document.getElementById("chat-search-count").textContent = "No results";
+    return;
+  }
+
+  // Jump to last result (most recent)
+  searchIdx = searchResults.length - 1;
+  jumpToResult();
+}
+
+function jumpToResult(){
+  clearSearchHighlights();
+  searchResults.forEach(function(r){ r.querySelector(".bubble-text") && r.querySelector(".bubble-text").classList.add("msg-highlight"); });
+  var cur = searchResults[searchIdx];
+  if(!cur) return;
+  cur.querySelector(".bubble-text") && cur.querySelector(".bubble-text").classList.remove("msg-highlight");
+  cur.querySelector(".bubble-text") && cur.querySelector(".bubble-text").classList.add("msg-highlight-current");
+  cur.scrollIntoView({behavior:"smooth", block:"center"});
+  document.getElementById("chat-search-count").textContent = (searchIdx+1)+" / "+searchResults.length;
+}
+
+document.getElementById("chat-search-input").addEventListener("input", function(){
+  doSearch(this.value);
+});
+document.getElementById("chat-search-input").addEventListener("keydown", function(e){
+  if(e.key==="Enter"){ e.preventDefault(); goNext(); }
+  if(e.key==="Escape") closeSearch();
+});
+
+function goNext(){
+  if(!searchResults.length) return;
+  searchIdx = (searchIdx + 1) % searchResults.length;
+  jumpToResult();
+}
+function goPrev(){
+  if(!searchResults.length) return;
+  searchIdx = (searchIdx - 1 + searchResults.length) % searchResults.length;
+  jumpToResult();
+}
+
+document.getElementById("chat-search-next").addEventListener("click", goNext);
+document.getElementById("chat-search-prev").addEventListener("click", goPrev);
+
+// Close search when switching rooms
 // ── Typing indicator ──────────────────────────────────────────────────────────
 var typingTimeout = null;
 var typingRef     = null;
@@ -2636,10 +2809,14 @@ function fetchLinkPreview(url, bubbleEl){
 
 // ── Delete entire chat history ────────────────────────────────────────────────
 document.getElementById("btn-delete-chat").addEventListener("click", function(){
-  if(!currentRoom) return;
-  if(!confirm("Delete entire chat history with this person? This cannot be undone.")) return;
-  db.ref("messages/"+currentRoom).remove(function(err){
-    if(err){ alert("Failed to delete: "+err.message); return; }
+  if(!currentRoom || !me) return;
+  if(!confirm("Delete chat history? This will only delete it for you.")) return;
+
+  // Store deleted room locally so it never shows messages again for this user
+  // Use /deleted/{roomId}/{username} = timestamp
+  db.ref("deleted/"+currentRoom+"/"+me.username).set(Date.now(), function(err){
+    if(err){ alert("Failed: "+err.message); return; }
+    // Clear messages from screen
     document.getElementById("messages-list").innerHTML = "";
   });
 });
