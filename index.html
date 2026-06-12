@@ -693,6 +693,18 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   border-radius:3px;
 }
 #chat-search-input:focus{ border-color:var(--accent); }
+
+/* ── Love Stats ── */
+.stats-card{background:rgba(255,255,255,.05);border:1px solid rgba(240,171,252,.15);border-radius:16px;padding:20px;margin-bottom:16px;}
+.stats-card h3{font-size:13px;text-transform:uppercase;letter-spacing:.1em;color:#c084fc;margin-bottom:14px;font-weight:600;}
+.stats-name{font-size:15px;font-weight:600;color:#f0abfc;}
+.stats-num{font-size:28px;font-weight:800;color:#fff;}
+.stats-label{font-size:11px;color:#a78bfa;margin-top:2px;}
+.love-bar-wrap{background:rgba(255,255,255,.08);border-radius:20px;height:10px;overflow:hidden;margin:6px 0 4px;}
+.love-bar{height:100%;border-radius:20px;transition:width 1s ease;}
+.emoji-chip{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.07);border-radius:20px;padding:4px 10px;font-size:13px;margin:3px;}
+.astro-sign{font-size:32px;line-height:1;}
+.compat-ring{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#fff;margin:0 auto 8px;position:relative;}
 </style>
 </head>
 <body>
@@ -775,6 +787,25 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 <!-- App -->
 <div id="app-screen">
 
+  <!-- Love Stats Overlay -->
+  <div id="love-stats-screen" style="display:none;position:fixed;inset:0;z-index:500;background:linear-gradient(135deg,#0d0221,#1a0533,#0d1117);overflow-y:auto;padding:24px 16px 48px;">
+    <div style="max-width:480px;margin:0 auto;">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <button id="btn-close-stats" style="background:transparent;border:none;color:#e879f9;font-size:22px;cursor:pointer;">←</button>
+        <h2 style="color:#f0abfc;font-size:20px;font-weight:700;letter-spacing:.5px;">💕 Love Stats</h2>
+        <div style="width:32px;"></div>
+      </div>
+      <!-- Loading state -->
+      <div id="stats-loading" style="text-align:center;padding:60px 0;color:#c084fc;font-size:14px;">
+        <div style="font-size:48px;margin-bottom:16px;">💝</div>
+        <div>Calculating your love…</div>
+      </div>
+      <!-- Stats content -->
+      <div id="stats-content" style="display:none;"></div>
+    </div>
+  </div>
+
   <!-- Sidebar -->
   <div id="sidebar" class="open">
     <div class="sidebar-header">
@@ -782,6 +813,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
         <div class="user-av" id="user-av"></div>
         <span id="user-display-name"></span>
       </div>
+      <button class="icon-btn" id="btn-love-stats" title="Love Stats">👩‍❤️‍💋‍👨</button>
       <button class="icon-btn" id="btn-signout" title="Sign out">⏻</button>
     </div>
     <div class="search-wrap">
@@ -1687,6 +1719,324 @@ document.getElementById("chat-search-next").addEventListener("click", goNext);
 document.getElementById("chat-search-prev").addEventListener("click", goPrev);
 
 // Close search when switching rooms
+
+// ── Love Stats ────────────────────────────────────────────────────────────────
+var GREY_USER  = "grey";
+var NIKKY_USER = "nikky";
+
+// Astrology data
+var ASTRO = {
+  grey:  { name:"Grey",  dob:"September 8", sign:"Virgo",   symbol:"♍", emoji:"🌾", planet:"Mercury",
+            traits:["Caring","Intelligent","Loyal","Detail-oriented","Devoted"] },
+  nikky: { name:"Nikky", dob:"April 13",    sign:"Aries",   symbol:"♈", emoji:"🔥", planet:"Mars",
+            traits:["Passionate","Courageous","Adventurous","Protective","Bold"] }
+};
+
+var LOVE_WORDS = ["love","luv","ily","i love","miss you","missing you","baby","babe",
+                  "sweetheart","honey","darling","cutie","beautiful","handsome","kisses",
+                  "hugs","forever","always","soulmate","💕","💖","💗","❤️","🥰","😘","💋","💑","💏"];
+
+function getZodiacCompat(){
+  // Aries (Nikky) + Virgo (Grey) — fixed pairing
+  return {
+    pct: 78,
+    msg: "Opposites attract — Aries brings fire & passion, Virgo brings devotion & care! 🔥🌾",
+    reading: [
+      "🔥 Nikky (Aries) brings excitement, spontaneity and fierce protection to this relationship.",
+      "🌾 Grey (Virgo) brings warmth, deep care, loyalty and a nurturing heart.",
+      "💑 Together you balance each other perfectly — where one is wild, the other is steady.",
+      "💬 Communication is your superpower. The more you talk, the stronger you grow.",
+      "🌹 Aries showers Virgo with passion; Virgo shows Aries what true home feels like.",
+      "⭐ Your differences are not weaknesses — they are the reason you work so beautifully.",
+      "💍 A marriage between Aries and Virgo is rare, real and built to last forever."
+    ]
+  };
+}
+
+document.getElementById("btn-love-stats").addEventListener("click", function(){
+  document.getElementById("love-stats-screen").style.display = "block";
+  document.getElementById("stats-loading").style.display    = "block";
+  document.getElementById("stats-content").style.display    = "none";
+  loadLoveStats();
+});
+
+document.getElementById("btn-close-stats").addEventListener("click", function(){
+  document.getElementById("love-stats-screen").style.display = "none";
+});
+
+function loadLoveStats(){
+  // Load ALL messages from both rooms (grey__nikky is the only room)
+  var roomKey = [GREY_USER, NIKKY_USER].sort().join("__");
+  db.ref("messages/"+roomKey).once("value", function(snap){
+    var stats = {
+      grey:  { count:0, loveWords:0, emojis:{} },
+      nikky: { count:0, loveWords:0, emojis:{} }
+    };
+    var totalMsgs = 0;
+
+    snap.forEach(function(d){
+      var msg = d.val();
+      if(!msg || !msg.from || msg.type==="image" || msg.type==="gif") return;
+      var who  = msg.from === GREY_USER ? "grey" : "nikky";
+      var text = (msg.text||"").toLowerCase();
+      stats[who].count++;
+      totalMsgs++;
+
+      // Count love words
+      LOVE_WORDS.forEach(function(w){
+        if(text.includes(w.toLowerCase())) stats[who].loveWords++;
+      });
+
+      // Count emojis
+      var emojiMatches = msg.text && msg.text.match(/\p{Emoji_Presentation}/gu);
+      if(emojiMatches){
+        emojiMatches.forEach(function(em){
+          stats[who].emojis[em] = (stats[who].emojis[em]||0)+1;
+        });
+      }
+    });
+
+    renderStats(stats, totalMsgs);
+  });
+}
+
+function renderStats(s, total){
+  var g  = s.grey, n = s.nikky;
+  var gPct = total ? Math.round(g.count/total*100) : 50;
+  var nPct = 100 - gPct;
+  var compat = getZodiacCompat();
+  var ag = ASTRO.grey, an = ASTRO.nikky;
+
+  // Top emojis
+  function topEmojis(emojiObj, limit){
+    return Object.keys(emojiObj).sort(function(a,b){return emojiObj[b]-emojiObj[a];}).slice(0,limit);
+  }
+  var gTop = topEmojis(g.emojis, 8);
+  var nTop = topEmojis(n.emojis, 8);
+
+  var html = "";
+
+  // ── Hero ──
+  html += '<div style="text-align:center;margin-bottom:28px;">'
+    +'<div style="position:relative;display:inline-block;margin-bottom:12px;">'
+      +'<div style="font-size:26px;letter-spacing:-4px;line-height:1.2;">🌹❤️‍🔥💍🌹</div>'
+      +'<div style="font-size:72px;margin:4px 0;filter:drop-shadow(0 0 18px #e879f9);">👩‍❤️‍💋‍👨</div>'
+      +'<div style="font-size:26px;letter-spacing:-4px;line-height:1.2;">🌹💍❤️‍🔥🌹</div>'
+    +'</div>'
+    +'<div style="font-size:23px;font-weight:800;background:linear-gradient(90deg,#f9a8d4,#e879f9,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.5px;">Grey & Nikky</div>'
+    +'<div style="font-size:13px;color:#d8b4fe;margin-top:6px;letter-spacing:.5px;">💍 Husband & Wife · Forever & Always 💍</div>'
+    +'<div style="font-size:18px;margin-top:8px;letter-spacing:2px;">💕 🌸 💕 🌸 💕</div>'
+    +'</div>';
+
+  // ── Message count card ──
+  html += '<div class="stats-card">'
+    +'<h3>💬 Messages Sent</h3>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
+      +'<div style="text-align:center;flex:1;">'
+        +'<div style="font-size:12px;color:#e879f9;margin-bottom:4px;">'+ag.emoji+' '+ag.name+'</div>'
+        +'<div class="stats-num">'+g.count+'</div>'
+        +'<div class="stats-label">messages</div>'
+      +'</div>'
+      +'<div style="font-size:28px;">💬</div>'
+      +'<div style="text-align:center;flex:1;">'
+        +'<div style="font-size:12px;color:#e879f9;margin-bottom:4px;">'+an.emoji+' '+an.name+'</div>'
+        +'<div class="stats-num">'+n.count+'</div>'
+        +'<div class="stats-label">messages</div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="font-size:12px;color:#c084fc;margin-bottom:6px;">'+ag.name+' '+gPct+'% · '+an.name+' '+nPct+'%</div>'
+    +'<div class="love-bar-wrap">'
+      +'<div class="love-bar" style="width:'+gPct+'%;background:linear-gradient(90deg,#e879f9,#a855f7);"></div>'
+    +'</div>'
+    +'<div style="font-size:11px;color:#a78bfa;text-align:right;">Total: '+total+' messages</div>'
+    +'</div>';
+
+  // ── Love words ──
+  html += '<div class="stats-card">'
+    +'<h3>💕 Love Expressed</h3>'
+    +'<div style="display:flex;justify-content:space-around;">'
+      +'<div style="text-align:center;">'
+        +'<div style="font-size:36px;">'+g.loveWords+'</div>'
+        +'<div style="font-size:12px;color:#e879f9;">'+ag.name+'</div>'
+        +'<div style="font-size:10px;color:#a78bfa;">times said love</div>'
+      +'</div>'
+      +'<div style="font-size:28px;align-self:center;">❤️</div>'
+      +'<div style="text-align:center;">'
+        +'<div style="font-size:36px;">'+n.loveWords+'</div>'
+        +'<div style="font-size:12px;color:#e879f9;">'+an.name+'</div>'
+        +'<div style="font-size:10px;color:#a78bfa;">times said love</div>'
+      +'</div>'
+    +'</div>'
+    +'</div>';
+
+  // ── Emojis used ──
+  if(gTop.length || nTop.length){
+    html += '<div class="stats-card"><h3>😊 Favourite Emojis</h3>';
+    if(gTop.length){
+      html += '<div style="margin-bottom:10px;"><div style="font-size:12px;color:#e879f9;margin-bottom:6px;">'+ag.emoji+' '+ag.name+'</div>';
+      gTop.forEach(function(em){ html += '<span class="emoji-chip">'+em+' <span style="color:#a78bfa;font-size:10px;">×'+g.emojis[em]+'</span></span>'; });
+      html += '</div>';
+    }
+    if(nTop.length){
+      html += '<div><div style="font-size:12px;color:#e879f9;margin-bottom:6px;">'+an.emoji+' '+an.name+'</div>';
+      nTop.forEach(function(em){ html += '<span class="emoji-chip">'+em+' <span style="color:#a78bfa;font-size:10px;">×'+n.emojis[em]+'</span></span>'; });
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  // ── Astrology ──
+  html += '<div class="stats-card"><h3>🌟 Astrology</h3>'
+    +'<div style="display:flex;justify-content:space-around;margin-bottom:16px;">'
+      +'<div style="text-align:center;">'
+        +'<div class="astro-sign">'+ag.symbol+'</div>'
+        +'<div style="font-size:14px;font-weight:700;color:#f0abfc;margin-top:4px;">'+ag.sign+'</div>'
+        +'<div style="font-size:11px;color:#a78bfa;">'+ag.name+' · '+ag.dob+'</div>'
+        +'<div style="font-size:11px;color:#c084fc;margin-top:4px;">'+ag.planet+'</div>'
+        +'<div style="margin-top:8px;">'+ag.traits.map(function(t){return'<span style="display:inline-block;background:rgba(168,85,247,.2);border-radius:20px;padding:2px 8px;font-size:10px;color:#d8b4fe;margin:2px;">'+t+'</span>';}).join("")+'</div>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;font-size:22px;">💞</div>'
+      +'<div style="text-align:center;">'
+        +'<div class="astro-sign">'+an.symbol+'</div>'
+        +'<div style="font-size:14px;font-weight:700;color:#f0abfc;margin-top:4px;">'+an.sign+'</div>'
+        +'<div style="font-size:11px;color:#a78bfa;">'+an.name+' · '+an.dob+'</div>'
+        +'<div style="font-size:11px;color:#c084fc;margin-top:4px;">'+an.planet+'</div>'
+        +'<div style="margin-top:8px;">'+an.traits.map(function(t){return'<span style="display:inline-block;background:rgba(168,85,247,.2);border-radius:20px;padding:2px 8px;font-size:10px;color:#d8b4fe;margin:2px;">'+t+'</span>';}).join("")+'</div>'
+      +'</div>'
+    +'</div>'
+
+    +'<div style="text-align:center;padding:16px;background:rgba(168,85,247,.1);border-radius:12px;">'
+      +'<div style="font-size:11px;color:#a78bfa;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">Compatibility</div>'
+      +'<div style="font-size:42px;font-weight:900;background:linear-gradient(90deg,#e879f9,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">'+compat.pct+'%</div>'
+      +'<div style="width:100%;background:rgba(255,255,255,.08);border-radius:20px;height:8px;margin:8px 0;">'
+        +'<div style="width:'+compat.pct+'%;height:100%;border-radius:20px;background:linear-gradient(90deg,#e879f9,#a855f7);"></div>'
+      +'</div>'
+      +'<div style="font-size:12px;color:#d8b4fe;margin-top:6px;">'+compat.msg+'</div>'
+    +'</div>'
+    +'<div style="margin-top:16px;">'
+    +compat.reading.map(function(line){
+      return '<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(168,85,247,.1);">'
+        +'<span style="font-size:16px;flex-shrink:0;">'+line.split(" ")[0]+'</span>'
+        +'<span style="font-size:13px;color:#e9d5ff;line-height:1.6;">'+line.slice(line.indexOf(" ")+1)+'</span>'
+        +'</div>';
+    }).join("")
+    +'</div>'
+    +'</div>';
+
+  // ── Sweet quote ──
+  var quotes = [
+    "Every message is a heartbeat. 💓",
+    "Distance means nothing when love means everything. 💕",
+    "You are my today and all of my tomorrows. 🌹",
+    "In your arms is right where I belong. 🫂",
+    "You are the best thing that ever happened to me. 💍",
+    "I fell in love with you and I have no plans of getting up. 😍",
+    "You are my sunshine on the cloudiest days. ☀️",
+    "Every love story is beautiful, but ours is my favourite. 📖",
+    "You are the reason I smile for no reason. 😊",
+    "I choose you. And I will choose you over and over again. 💍",
+    "Home is wherever I am with you. 🏡",
+    "You make my heart skip a beat every single day. 💗",
+    "Loving you is the best decision I ever made. ❤️",
+    "You are my person. Always and forever. 🫶",
+    "I love you more than yesterday, less than tomorrow. 💕",
+    "You are the missing piece I did not know I needed. 🧩",
+    "Being with you is like breathing — I cannot live without it. 🌬️",
+    "You are my greatest adventure. ✈️",
+    "I want to grow old with you and still hold your hand. 👴👵",
+    "My heart found its home when it found you. 🏠",
+    "You are not just my love, you are my life. 🌸",
+    "Every day with you is a gift I never want to return. 🎁",
+    "You are the calm in my storm. 🌈",
+    "I would rather fight with you than laugh with anyone else. 😂",
+    "You are my favourite notification. 📱",
+    "When I count my blessings I count you twice. 🙏",
+    "You had me at hello and kept me with every smile. 😘",
+    "I love you not only for what you are but for what I am when I am with you. 💞",
+    "You are the first thought in my morning and the last in my night. 🌙",
+    "Falling in love with you was the easiest thing I ever did. 💫",
+    "You complete me in ways I did not know I was incomplete. 💑",
+    "Your laugh is my favourite sound in the world. 😄",
+    "I never knew what love felt like until I met you. ❤️‍🔥",
+    "Every kiss from you feels like the first one. 😚",
+    "You are worth every late night and every early morning. ⏰",
+    "My love for you grows stronger with every heartbeat. 💓",
+    "You are my forever and always. 🌟",
+    "I love the way you love me. 🥰",
+    "Together is my favourite place to be. 🫂",
+    "You are everything I never knew I always wanted. 💭",
+    "I will spend an eternity loving you. ♾️",
+    "Your smile is the reason my world is beautiful. 🌺",
+    "You are the poetry my heart always wanted to write. 📝",
+    "I love you a little more every single day. 💗",
+    "You are my happy place. 😌",
+    "Life with you is the greatest blessing. 🌠",
+    "You are my heart walking outside my body. 💘",
+    "Being loved by you is the best feeling in the world. 🌍",
+    "I never want to stop making memories with you. 📸",
+    "You are my rainbow after every storm. 🌈",
+    "I love you to the moon and back, every single night. 🌙",
+    "Your love makes me brave. 🦁",
+    "You are proof that dreams really do come true. ✨",
+    "No matter where I am, you are home to me. 🏠",
+    "You are the reason I believe in love. 💝",
+    "Holding your hand is my favourite hobby. 🤝",
+    "I look at you and see the rest of my life in your eyes. 👀",
+    "You are my favourite part of every day. 🌅",
+    "Being with you makes every moment count. ⏳",
+    "I love you more than words could ever say. 🗣️",
+    "Your love is the only language my heart speaks. 💬",
+    "You are my anchor in every storm. ⚓",
+    "I was made to love you. 💖",
+    "You are my favourite person in all the universe. 🌌",
+    "Our love is a story I never want to end. 📚",
+    "You make the ordinary feel extraordinary. ✨",
+    "I am so lucky to call you mine. 🍀",
+    "You are worth it — every single moment. ⭐",
+    "I love you more today than I did yesterday. 💕",
+    "You are my whole heart wrapped in one person. 💞",
+    "Meeting you was fate. Falling for you was a choice. Loving you is my life. 🌹",
+    "You are the best thing that has ever been mine. 💍",
+    "I would choose you in a hundred lifetimes. 🔄",
+    "You are my safe place. 🛡️",
+    "Love is not something you find — it found me in you. 🥹",
+    "I want to be your last everything. 🌟",
+    "You make my world a better place just by being in it. 🌎",
+    "Thank you for loving me at my worst and celebrating me at my best. 🙏",
+    "You are the thought that starts each morning and ends each night. ☀️",
+    "My heart is and always will be yours. 💓",
+    "Every moment with you is a moment I treasure. 💎",
+    "You are the reason I wake up with a smile. 😊",
+    "I love you for all that you are and all you are yet to be. 🌱",
+    "You are my greatest love story. 📖",
+    "I fell in love slowly and then all at once. 😴💕",
+    "You and I — that is my favourite story. 💑",
+    "Your love is the kind that changes everything. 🌊",
+    "I want a thousand more mornings waking up next to you. ☀️",
+    "You are my dream and my reality at the same time. 💭",
+    "Loving you is the most natural thing I have ever done. 🌿",
+    "You are the only one I want to annoy for the rest of my life. 😄",
+    "My love for you is not just a feeling — it is a promise. 🤞",
+    "You light up every room and every corner of my heart. 💡",
+    "No one else could ever be what you are to me. 👫",
+    "I love you not just with words but with every breath I take. 🌬️",
+    "You are my today, my tomorrow and my forever. 🕊️",
+    "In a sea of people, my eyes will always search for you. 🔍",
+    "You are my exception — my one and only. 💯",
+    "With you, every season feels like spring. 🌸",
+    "You are the best chapter of my life. 📖",
+    "My favourite place is next to you. 🛋️",
+    "You are loved more than you will ever know. 💌"
+  ];
+  html += '<div style="text-align:center;padding:20px;color:#c084fc;font-style:italic;font-size:14px;line-height:1.8;">'
+    +'"'+quotes[Math.floor(Math.random()*quotes.length)]+'"'
+    +'</div>';
+
+  document.getElementById("stats-content").innerHTML = html;
+  document.getElementById("stats-loading").style.display = "none";
+  document.getElementById("stats-content").style.display = "block";
+}
+
 // ── Typing indicator ──────────────────────────────────────────────────────────
 var typingTimeout = null;
 var typingRef     = null;
