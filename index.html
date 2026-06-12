@@ -1199,9 +1199,17 @@ function openRoom(otherUser, otherName){
   }
 
   // Load a page of messages
+  // Loading indicator at top
+  var loadingIndicator = document.createElement("div");
+  loadingIndicator.id = "msg-loading";
+  loadingIndicator.style.cssText = "text-align:center;padding:10px;color:var(--text-muted);font-size:12px;display:none;";
+  loadingIndicator.textContent = "Loading...";
+  ml.parentNode.insertBefore(loadingIndicator, ml);
+
   function loadPage(beforeKey){
     if(loadingMore || allLoaded) return;
     loadingMore=true;
+    loadingIndicator.style.display = "block";
 
     var q=db.ref("messages/"+currentRoom).orderByKey();
     if(beforeKey) q=q.endBefore(beforeKey);
@@ -1250,6 +1258,7 @@ function openRoom(otherUser, otherName){
         setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 500);
       }
       loadingMore=false;
+      loadingIndicator.style.display = "none";
       applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
       if(reactRef) listenReactions(currentRoom);
       window._roomFullyLoaded=true;
@@ -1259,11 +1268,14 @@ function openRoom(otherUser, otherName){
 
   loadPage(null);
 
-  // Scroll up → load older messages
-  ml.addEventListener("scroll",function(){
+  // Scroll up → load older messages (use both ml and window for mobile)
+  function checkScrollTop(){
     if(allLoaded||loadingMore) return;
-    if(this.scrollTop < 60) loadPage(oldestKey);
-  });
+    if(ml.scrollTop < 100) loadPage(oldestKey);
+  }
+  ml.addEventListener("scroll", checkScrollTop, {passive:true});
+  // Mobile fallback: sometimes scroll fires on the container not ml
+  document.getElementById("chat-view-active").addEventListener("scroll", checkScrollTop, {passive:true});
 
   // Real-time: new messages only (after room opened)
   var newRef=null, newCb=null;
