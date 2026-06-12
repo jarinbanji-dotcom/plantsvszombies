@@ -1219,7 +1219,7 @@ function openRoom(otherUser, otherName){
       var msgs=[];
       snap.forEach(function(d){ msgs.push(d); });
       if(msgs.length < PAGE) allLoaded=true;
-      if(!msgs.length){ loadingMore=false; return; }
+      if(!msgs.length){ loadingMore=false; loadingIndicator.style.display="none"; return; }
 
       oldestKey = msgs[0].key;
       var prevScrollH = ml.scrollHeight;
