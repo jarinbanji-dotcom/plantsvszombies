@@ -705,6 +705,18 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 .emoji-chip{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.07);border-radius:20px;padding:4px 10px;font-size:13px;margin:3px;}
 .astro-sign{font-size:32px;line-height:1;}
 .compat-ring{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#fff;margin:0 auto 8px;position:relative;}
+
+/* ── Chat loading overlay ── */
+#chat-loading-overlay{
+  position:absolute;inset:0;
+  background:var(--bg-chat);
+  display:none;
+  align-items:center;justify-content:center;
+  flex-direction:column;gap:14px;
+  z-index:10;
+  color:var(--text-muted);font-size:13px;
+}
+#chat-loading-overlay.show{ display:flex; }
 </style>
 </head>
 <body>
@@ -853,8 +865,12 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
       <span style="font-size:14px;">Pick someone to chat with</span>
     </div>
 
-    <div id="chat-view-active">
-      <div id="messages-list"></div>
+    <div id="chat-view-active" style="position:relative;">
+      <div id="chat-loading-overlay">
+        <div class="spinner"></div>
+        <span>Loading messages…</span>
+      </div>
+      <div id="messages-list" style="visibility:hidden;"></div>
 
       <div id="typing-indicator"></div>
       <div id="reply-bar">
@@ -1191,6 +1207,9 @@ function openRoom(otherUser, otherName){
   $("chat-av").style.background          = aColor(otherName);
   $("chat-view-placeholder").style.display = "none";
   $("chat-view-active").style.display      = "flex";
+  // Show loading overlay, hide messages until loaded
+  document.getElementById("chat-loading-overlay").classList.add("show");
+  document.getElementById("messages-list").style.visibility = "hidden";
   $("btn-delete-chat").style.display       = "flex";
   document.getElementById("typing-indicator").innerHTML = "";
   closeSearch();
@@ -1277,10 +1296,13 @@ function openRoom(otherUser, otherName){
         }
       });
 
-      // Scroll to bottom
+      // Scroll to bottom then reveal
       ml.scrollTop = ml.scrollHeight;
-      setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 100);
-      setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 400);
+      setTimeout(function(){
+        ml.scrollTop = ml.scrollHeight;
+        ml.style.visibility = "visible";
+        document.getElementById("chat-loading-overlay").classList.remove("show");
+      }, 100);
 
       applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
       listenReactions(currentRoom);
@@ -1354,6 +1376,22 @@ function openRoom(otherUser, otherName){
         ml.insertBefore(frag, ml.firstChild);
         ml.scrollTop = ml.scrollHeight - prevH;
         applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
+        // Load reactions for all newly added rows
+        var newRows = ml.querySelectorAll(".msg-row[data-key]");
+        // Only apply to the newly prepended ones (first N rows)
+        var addedCount = msgs.length;
+        for(var ri=0; ri<addedCount && ri<newRows.length; ri++){
+          (function(row){
+            var key = row.dataset.key;
+            db.ref("reactions/"+loadRoom+"/"+key).once("value", function(rs){
+              var rd = rs.val()||{};
+              if(Object.keys(rd).length){
+                var bubble = row.querySelector(".bubble");
+                if(bubble) renderReactions(key, rd, bubble);
+              }
+            });
+          })(newRows[ri]);
+        }
       });
   };
 
