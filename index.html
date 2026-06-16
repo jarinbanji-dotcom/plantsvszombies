@@ -753,10 +753,6 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
     <span class="ctx-action" id="ctx-edit" title="Edit">✏️</span>
     <span class="ctx-action danger" id="ctx-delete" title="Delete">🗑️</span>
   </div>
-  <div id="ctx-actions" style="display:none;border-top:1px solid #2d3f55;margin-top:4px;padding-top:4px;border-radius:0 0 20px 20px;">
-    <div class="ctx-item" id="ctx-edit">✏️ Edit</div>
-    <div class="ctx-item danger" id="ctx-delete">🗑️ Delete</div>
-  </div>
 </div>
 
 
@@ -1399,12 +1395,23 @@ function openRoom(otherUser, otherName){
 
   // Real-time: new messages only
   var newRef = null, newCb = null, newSkipped = false;
+  var lastSeenNewKey = null;
   setTimeout(function(){
     if(currentRoom !== currentRoom) return;
     newRef = db.ref("messages/"+currentRoom).orderByKey().limitToLast(1);
     newSkipped = false;
     newCb = newRef.on("child_added", function(snap){
-      if(!newSkipped){ newSkipped=true; return; }
+      if(!newSkipped){
+        newSkipped = true;
+        lastSeenNewKey = snap.key; // remember the existing last message, don't render it
+        return;
+      }
+      // Guard against limitToLast(1) re-firing for an OLDER message after a delete.
+      // Firebase keys are chronologically sortable strings, so a genuinely new
+      // message will always have a key greater than the last one we've seen.
+      if(lastSeenNewKey !== null && snap.key <= lastSeenNewKey) return;
+      lastSeenNewKey = snap.key;
+
       var msg  = snap.val();
       var mine = msg.from === me.username;
       var mDate = fmtDate(msg.ts);
