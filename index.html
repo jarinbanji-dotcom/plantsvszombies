@@ -928,6 +928,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 <!-- Firebase Realtime DB -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
 <script>
 // ── Firebase ──────────────────────────────────────────────────────────────────
 firebase.initializeApp({
@@ -940,6 +941,7 @@ firebase.initializeApp({
   appId:         "1:81103635750:web:896684e434b519f38b6de7"
 });
 var db = firebase.database();
+var storage = firebase.storage();
 
 // ── Emoji data ────────────────────────────────────────────────────────────────
 var EMOJIS = {
@@ -1242,8 +1244,8 @@ function openRoom(otherUser, otherName){
   db.ref("deleted/"+currentRoom+"/"+me.username).once("value", function(delSnap){
     var deletedAt = delSnap.val() || 0;
 
-  // Load last 150 messages once
-  db.ref("messages/"+loadRoom).orderByKey().limitToLast(150)
+  // Load last 50 messages once (reduced from 150 to save bandwidth)
+  db.ref("messages/"+loadRoom).orderByKey().limitToLast(50)
     .once("value", function(snap){
       snap.forEach(function(d){
         var msg  = d.val();
@@ -1315,83 +1317,83 @@ function openRoom(otherUser, otherName){
       window._loadMoreRoom = currentRoom;
       window._loadingMore  = false;
       window._deletedAt    = deletedAt;
+      // Store newest key and mark as fully loaded (initial load = latest messages)
+      var lastRow = ml.querySelector(".msg-row[data-key]:last-child");
+      window._newestMsgKey = lastRow ? lastRow.dataset.key : null;
+      window._newestLoaded = true; // initial load is always the latest
+      window._loadingNewer = false;
     });
   }); // end deletedAt check
 
   // Load more when scrolled to top
   ml.onscroll = function(){
-    if(window._loadMoreRoom !== currentRoom) return;
-    if(window._loadingMore) return;
-    if(ml.scrollTop > 60) return;
-    if(!window._oldestMsgKey) return;
+    // Disable all loading while search is active
+    var searchBar = document.getElementById("chat-search-bar");
+    if(searchBar && searchBar.style.display !== "none") return;
 
-    window._loadingMore = true;
+    // Scroll UP - load older
+    if(ml.scrollTop < 120 && window._loadMoreRoom===currentRoom && !window._loadingMore && window._oldestMsgKey){
+      loadPage(window._oldestMsgKey, false);
+    }
+
+    // Scroll DOWN - load newer (after search jump, search closed)
+    if(!window._newestLoaded && !window._loadingNewer){
+      var distFromBottom = ml.scrollHeight - ml.scrollTop - ml.clientHeight;
+      if(distFromBottom < 120) loadNewer();
+    }
+  };
+
+  window._loadingNewer = false;
+  function loadNewer(){
+    if(window._loadingNewer || window._newestLoaded) return;
+    if(!window._newestMsgKey || window._loadMoreRoom !== currentRoom) return;
+    // If search just closed, only load when user explicitly scrolls down
+    if(window._searchJustClosed){
+      window._searchJustClosed = false; // allow next scroll to trigger
+      return;
+    }
+    window._loadingNewer = true;
     var loadRoom = currentRoom;
-    var beforeKey = window._oldestMsgKey;
+    var afterKey = window._newestMsgKey;
 
-    db.ref("messages/"+loadRoom).orderByKey().endBefore(beforeKey).limitToLast(150)
+    db.ref("messages/"+loadRoom).orderByKey().startAfter(afterKey).limitToFirst(150)
       .once("value", function(snap){
-        if(loadRoom !== currentRoom){ window._loadingMore=false; return; }
+        if(loadRoom !== currentRoom){ window._loadingNewer=false; return; }
+        var msgs=[]; snap.forEach(function(d){ msgs.push({key:d.key,val:d.val()}); });
+        window._loadingNewer = false;
+        if(!msgs.length){ window._newestLoaded=true; return; }
 
-        var msgs=[];
-        snap.forEach(function(d){ msgs.push({key:d.key,val:d.val()}); });
-        window._loadingMore = false;
-
-        if(!msgs.length) return;
-        window._oldestMsgKey = msgs[0].key;
-
+        var deletedAt = window._deletedAt||0;
+        var prevTop = ml.scrollTop;
         var prevH = ml.scrollHeight;
-        var frag  = document.createDocumentFragment();
-        var fLastDate = null;
 
-        var deletedAt = window._deletedAt || 0;
         msgs.forEach(function(m){
-          if(m.val.ts && m.val.ts <= deletedAt) return; // skip deleted
+          if(m.val.ts && m.val.ts <= deletedAt) return;
           var mDate = fmtDate(m.val.ts);
-          if(mDate !== fLastDate){
-            var sep = document.createElement("div");
-            sep.className="date-sep"; sep.textContent=mDate;
-            frag.appendChild(sep);
-            fLastDate = mDate;
+          var seps = ml.querySelectorAll(".date-sep");
+          var lastSep = seps.length ? seps[seps.length-1] : null;
+          if(!lastSep||lastSep.textContent!==mDate){
+            var s=document.createElement("div"); s.className="date-sep"; s.textContent=mDate; ml.appendChild(s);
           }
-          var mine = m.val.from === me.username;
-          var row  = document.createElement("div");
-          row.className   = "msg-row "+(mine?"mine":"theirs");
-          row.dataset.key = m.key;
-          row.dataset.ts  = m.val.ts||0;
-          var isMedia = m.val.type==="gif"||m.val.type==="image";
+          var mine=m.val.from===me.username;
+          var row=document.createElement("div");
+          row.className="msg-row "+(mine?"mine":"theirs");
+          row.dataset.key=m.key; row.dataset.ts=m.val.ts||0;
           var qHtml="";
           if(m.val.replyTo) qHtml='<div class="quoted" data-replykey="'+escHtml(m.val.replyTo.key||"")+'"><div class="quoted-name">'+escHtml(m.val.replyTo.from||"")+'</div><div class="quoted-text">'+escHtml(m.val.replyTo.text||"")+'</div></div>';
           var bc;
-          if(m.val.type==="gif")        bc='<img class="msg-gif" src="'+escHtml(m.val.url)+'" alt="GIF" loading="lazy"/>';
+          if(m.val.type==="gif") bc='<img class="msg-gif" src="'+escHtml(m.val.url)+'" alt="GIF" loading="lazy"/>';
           else if(m.val.type==="image") bc='<img class="msg-img" src="'+escHtml(m.val.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
-          else bc='<span class="bubble-text" style="display:block;">'+linkifyText(m.val.text||"")+(m.val.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+' </span>';
-          row.innerHTML='<div class="bubble" style="'+(isMedia?"padding:4px 4px 20px;":"")+'">'+qHtml+bc+'<span class="bubble-meta">'+fmtTime(m.val.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+' </span></div>';
-          var arrow=document.createElement("div");
-          arrow.className="reply-arrow"; arrow.textContent="↩";
-          row.appendChild(arrow);
-          frag.appendChild(row);
+          else bc='<span class="bubble-text" style="display:block;">'+linkifyText(m.val.text||"")+'</span>';
+          row.innerHTML='<div class="bubble">'+qHtml+bc+'<span class="bubble-meta">'+fmtTime(m.val.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+' </span></div>';
+          var arrow=document.createElement("div"); arrow.className="reply-arrow"; arrow.textContent="↩"; row.appendChild(arrow);
+          ml.appendChild(row);
         });
 
-        ml.insertBefore(frag, ml.firstChild);
-        ml.scrollTop = ml.scrollHeight - prevH;
+        window._newestMsgKey = msgs[msgs.length-1].key;
+        ml.scrollTop = prevTop + (ml.scrollHeight - prevH);
+        if(msgs.length < 150) window._newestLoaded = true;
         applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
-        // Load reactions for all newly added rows
-        var newRows = ml.querySelectorAll(".msg-row[data-key]");
-        // Only apply to the newly prepended ones (first N rows)
-        var addedCount = msgs.length;
-        for(var ri=0; ri<addedCount && ri<newRows.length; ri++){
-          (function(row){
-            var key = row.dataset.key;
-            db.ref("reactions/"+loadRoom+"/"+key).once("value", function(rs){
-              var rd = rs.val()||{};
-              if(Object.keys(rd).length){
-                var bubble = row.querySelector(".bubble");
-                if(bubble) renderReactions(key, rd, bubble);
-              }
-            });
-          })(newRows[ri]);
-        }
       });
   };
 
@@ -1666,13 +1668,12 @@ document.getElementById("messages-list").addEventListener("click", function(e){
 });
 
 
-// ── In-chat message search ────────────────────────────────────────────────────
-var searchResults = [], searchIdx = 0;
+// ── In-chat message search (searches ALL messages in Firebase) ───────────────
+var searchResults = [], searchIdx = 0, searchDebounce = null;
 
 document.getElementById("btn-search-chat").addEventListener("click", function(){
   var bar = document.getElementById("chat-search-bar");
-  var isOpen = bar.style.display !== "none";
-  if(isOpen){
+  if(bar.style.display !== "none"){
     closeSearch();
   } else {
     bar.style.display = "flex";
@@ -1686,6 +1687,13 @@ function closeSearch(){
   document.getElementById("chat-search-count").textContent = "";
   clearSearchHighlights();
   searchResults = []; searchIdx = 0;
+  // Keep _newestLoaded = false so scroll-down loading works
+  // BUT only activate it when user actually scrolls down (not auto)
+  window._loadingNewer = false;
+  // Don't change _newestLoaded — let scroll down work naturally
+  // Just make sure we're not at the very bottom triggering auto-load
+  // We set a flag to require user to actually scroll before loading
+  window._searchJustClosed = true;
 }
 
 document.getElementById("chat-search-close").addEventListener("click", closeSearch);
@@ -1696,47 +1704,128 @@ function clearSearchHighlights(){
   });
 }
 
+// Search ALL messages from Firebase
 function doSearch(q){
   clearSearchHighlights();
   searchResults = []; searchIdx = 0;
+  var countEl = document.getElementById("chat-search-count");
 
-  if(!q.trim()){
-    document.getElementById("chat-search-count").textContent = "";
+  if(!q || !q.trim()){
+    countEl.textContent = "";
     return;
   }
 
+  countEl.textContent = "Searching…";
   var lower = q.toLowerCase();
-  document.querySelectorAll(".msg-row .bubble-text").forEach(function(el){
-    if((el.innerText||el.textContent).toLowerCase().includes(lower)){
-      el.classList.add("msg-highlight");
-      searchResults.push(el.closest(".msg-row"));
+
+  db.ref("messages/"+currentRoom).once("value", function(snap){
+    var all = [];
+    snap.forEach(function(d){
+      var msg = d.val();
+      if(msg && msg.text && msg.text.toLowerCase().includes(lower)){
+        all.push({ key: d.key, ts: msg.ts, text: msg.text, from: msg.from });
+      }
+    });
+
+    if(!all.length){
+      countEl.textContent = "No results";
+      return;
     }
+
+    searchResults = all;
+    searchIdx = all.length - 1; // start from most recent
+    countEl.textContent = (searchIdx+1)+" / "+all.length;
+    jumpToSearchResult();
   });
-
-  if(!searchResults.length){
-    document.getElementById("chat-search-count").textContent = "No results";
-    return;
-  }
-
-  // Jump to last result (most recent)
-  searchIdx = searchResults.length - 1;
-  jumpToResult();
 }
 
-function jumpToResult(){
-  clearSearchHighlights();
-  searchResults.forEach(function(r){ r.querySelector(".bubble-text") && r.querySelector(".bubble-text").classList.add("msg-highlight"); });
-  var cur = searchResults[searchIdx];
-  if(!cur) return;
-  cur.querySelector(".bubble-text") && cur.querySelector(".bubble-text").classList.remove("msg-highlight");
-  cur.querySelector(".bubble-text") && cur.querySelector(".bubble-text").classList.add("msg-highlight-current");
-  cur.scrollIntoView({behavior:"smooth", block:"center"});
+function jumpToSearchResult(){
+  if(!searchResults.length) return;
+  var item = searchResults[searchIdx];
   document.getElementById("chat-search-count").textContent = (searchIdx+1)+" / "+searchResults.length;
+
+  // Check if this message is already in DOM
+  var existing = document.querySelector('.msg-row[data-key="'+item.key+'"]');
+  if(existing){
+    clearSearchHighlights();
+    var bt = existing.querySelector(".bubble-text");
+    if(bt) bt.classList.add("msg-highlight-current");
+    existing.scrollIntoView({behavior:"smooth", block:"center"});
+    return;
+  }
+
+  // Not in DOM — load messages around this timestamp
+  document.getElementById("chat-loading-overlay").classList.add("show");
+  var ml = document.getElementById("messages-list");
+  ml.style.visibility = "hidden";
+
+  // Load 150 messages ending at this message's key
+  db.ref("messages/"+currentRoom).orderByKey()
+    .endAt(item.key).limitToLast(150)
+    .once("value", function(snap){
+      ml.innerHTML = "";
+      var lastDate = null;
+      var deletedAt = window._deletedAt || 0;
+
+      snap.forEach(function(d){
+        var msg = d.val();
+        if(msg.ts && msg.ts <= deletedAt) return;
+        var mDate = fmtDate(msg.ts);
+        if(mDate !== lastDate){
+          var sep = document.createElement("div");
+          sep.className="date-sep"; sep.textContent=mDate;
+          ml.appendChild(sep); lastDate=mDate;
+        }
+        var mine = msg.from === me.username;
+        var row  = document.createElement("div");
+        row.className   = "msg-row "+(mine?"mine":"theirs");
+        row.dataset.key = d.key;
+        row.dataset.ts  = msg.ts||0;
+        var qHtml="";
+        if(msg.replyTo) qHtml='<div class="quoted" data-replykey="'+escHtml(msg.replyTo.key||"")+'"><div class="quoted-name">'+escHtml(msg.replyTo.from||"")+'</div><div class="quoted-text">'+escHtml(msg.replyTo.text||"")+'</div></div>';
+        var bc;
+        if(msg.type==="gif")        bc='<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>';
+        else if(msg.type==="image") bc='<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
+        else bc='<span class="bubble-text" style="display:block;">'+linkifyText(msg.text||"")+'</span>';
+        row.innerHTML='<div class="bubble">'+qHtml+bc+'<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+' </span></div>';
+        var arrow=document.createElement("div");
+        arrow.className="reply-arrow"; arrow.textContent="↩";
+        row.appendChild(arrow);
+        ml.appendChild(row);
+      });
+
+      // Update oldest/newest keys for bidirectional loading
+      var firstRow = ml.querySelector(".msg-row[data-key]");
+      var allRows  = ml.querySelectorAll(".msg-row[data-key]");
+      var lastRowEl = allRows.length ? allRows[allRows.length-1] : null;
+      window._oldestMsgKey = firstRow ? firstRow.dataset.key : null;
+      window._newestMsgKey = lastRowEl ? lastRowEl.dataset.key : null;
+      window._newestLoaded = false; // may have newer messages below
+      window._loadingNewer = false;
+      window._loadMoreRoom = currentRoom;
+
+      // Scroll to the target message
+      setTimeout(function(){
+        var target = document.querySelector('.msg-row[data-key="'+item.key+'"]');
+        if(target){
+          clearSearchHighlights();
+          var bt = target.querySelector(".bubble-text");
+          if(bt) bt.classList.add("msg-highlight-current");
+          target.scrollIntoView({behavior:"instant", block:"center"});
+        }
+        ml.style.visibility = "visible";
+        document.getElementById("chat-loading-overlay").classList.remove("show");
+        applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
+      }, 100);
+    });
 }
 
 document.getElementById("chat-search-input").addEventListener("input", function(){
-  doSearch(this.value);
+  clearTimeout(searchDebounce);
+  var q = this.value;
+  searchDebounce = setTimeout(function(){ doSearch(q); }, 400);
 });
+
 document.getElementById("chat-search-input").addEventListener("keydown", function(e){
   if(e.key==="Enter"){ e.preventDefault(); goNext(); }
   if(e.key==="Escape") closeSearch();
@@ -1744,13 +1833,13 @@ document.getElementById("chat-search-input").addEventListener("keydown", functio
 
 function goNext(){
   if(!searchResults.length) return;
-  searchIdx = (searchIdx + 1) % searchResults.length;
-  jumpToResult();
+  searchIdx = (searchIdx - 1 + searchResults.length) % searchResults.length;
+  jumpToSearchResult();
 }
 function goPrev(){
   if(!searchResults.length) return;
-  searchIdx = (searchIdx - 1 + searchResults.length) % searchResults.length;
-  jumpToResult();
+  searchIdx = (searchIdx + 1) % searchResults.length;
+  jumpToSearchResult();
 }
 
 document.getElementById("chat-search-next").addEventListener("click", goNext);
@@ -2185,6 +2274,35 @@ function sendGif(url){
   db.ref("messages/"+currentRoom).push({from:me.username, type:"gif", url:url, ts:Date.now()});
 }
 
+// Upload a pasted/keyboard-shared image File to Storage instead of inlining base64
+function sendPastedImage(file){
+  if(!currentRoom || !me || !file) return;
+  var roomAtSend = currentRoom;
+  var ml = document.getElementById("messages-list");
+  var placeholder = document.createElement("div");
+  placeholder.className = "msg-row mine";
+  placeholder.innerHTML = '<div class="bubble"><span class="upload-progress">📤 Uploading image…</span></div>';
+  ml.appendChild(placeholder);
+  ml.scrollTop = ml.scrollHeight;
+
+  var ext = (file.type && file.type.includes("/")) ? file.type.split("/")[1] : "jpg";
+  var path = "chat-images/"+roomAtSend+"/"+Date.now()+"_"+Math.random().toString(36).slice(2)+"."+ext;
+
+  storage.ref(path).put(file).then(function(snapshot){
+    return snapshot.ref.getDownloadURL();
+  }).then(function(downloadUrl){
+    db.ref("messages/"+roomAtSend).push({
+      from: me.username, type: "image", url: downloadUrl, ts: Date.now()
+    }, function(err){
+      placeholder.remove();
+      if(err) alert("Failed to send image: "+err.message);
+    });
+  }).catch(function(err){
+    placeholder.remove();
+    alert("Failed to upload image: "+err.message);
+  });
+}
+
 // GIF button toggle
 document.getElementById("btn-gif").addEventListener("click", function(e){
   e.stopPropagation();
@@ -2222,9 +2340,7 @@ function handleImageData(dataTransfer){
     if(items[i].type.indexOf("image")===0){
       var file = items[i].getAsFile();
       if(!file) continue;
-      var reader = new FileReader();
-      reader.onload = function(ev){ sendGif(ev.target.result); };
-      reader.readAsDataURL(file);
+      sendPastedImage(file);
       return true;
     }
   }
@@ -2232,9 +2348,7 @@ function handleImageData(dataTransfer){
   var files = dataTransfer.files || [];
   for(var j=0;j<files.length;j++){
     if(files[j].type.indexOf("image")===0){
-      var reader2 = new FileReader();
-      reader2.onload = function(ev){ sendGif(ev.target.result); };
-      reader2.readAsDataURL(files[j]);
+      sendPastedImage(files[j]);
       return true;
     }
   }
@@ -2292,8 +2406,8 @@ document.getElementById("img-file-input").addEventListener("change", function(){
   var file = this.files[0];
   if(!file) return;
   if(!currentRoom || !me){ alert("Open a chat first."); return; }
-  if(file.size > 2 * 1024 * 1024){
-    alert("Image too large. Please pick an image under 2MB.");
+  if(file.size > 8 * 1024 * 1024){
+    alert("Image too large. Please pick an image under 8MB.");
     this.value=""; return;
   }
 
@@ -2301,24 +2415,32 @@ document.getElementById("img-file-input").addEventListener("change", function(){
   var ml = document.getElementById("messages-list");
   var placeholder = document.createElement("div");
   placeholder.className = "msg-row mine";
-  placeholder.innerHTML = '<div class="bubble"><span class="upload-progress">📤 Sending image…</span></div>';
+  placeholder.innerHTML = '<div class="bubble"><span class="upload-progress">📤 Uploading image…</span></div>';
   ml.appendChild(placeholder);
   ml.scrollTop = ml.scrollHeight;
 
-  var reader = new FileReader();
-  reader.onload = function(ev){
-    var base64 = ev.target.result; // data:image/jpeg;base64,...
-    db.ref("messages/"+currentRoom).push({
+  var roomAtSend = currentRoom;
+  var ext = (file.name && file.name.includes(".")) ? file.name.split(".").pop() : "jpg";
+  var path = "chat-images/"+roomAtSend+"/"+Date.now()+"_"+Math.random().toString(36).slice(2)+"."+ext;
+  var storageRef = storage.ref(path);
+
+  storageRef.put(file).then(function(snapshot){
+    return snapshot.ref.getDownloadURL();
+  }).then(function(downloadUrl){
+    db.ref("messages/"+roomAtSend).push({
       from: me.username,
       type: "image",
-      url:  base64,
+      url:  downloadUrl,
       ts:   Date.now()
     }, function(err){
       placeholder.remove();
       if(err) alert("Failed to send image: "+err.message);
     });
-  };
-  reader.readAsDataURL(file);
+  }).catch(function(err){
+    placeholder.remove();
+    alert("Failed to upload image: "+err.message);
+  });
+
   this.value = ""; // reset so same file can be picked again
 });
 
@@ -2835,11 +2957,11 @@ function initPresence(){
   // Register onDisconnect — Firebase server runs this when connection truly drops
   presRef.onDisconnect().update({ online: false, lastSeen: Date.now() });
 
-  // Keep-alive every 20s to fight false disconnects on file:// 
+  // Keep-alive every 60s — still fights false disconnects, much less bandwidth than 20s
   var keepAlive = setInterval(function(){
     if(!me){ clearInterval(keepAlive); return; }
     presRef.update({ online: true });
-  }, 20000);
+  }, 60000);
 
   // Only use .info/connected to RE-SET online after a real reconnect
   db.ref(".info/connected").on("value", function(snap){
