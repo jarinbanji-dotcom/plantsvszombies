@@ -913,7 +913,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
         <button class="emoji-btn" id="btn-emoji" title="Emoji">😊</button>
         <button class="gif-btn"   id="btn-gif"   title="GIF">GIF</button>
-        <input  type="file" id="img-file-input" accept="image/*,audio/*"/>
+        <input  type="file" id="img-file-input" accept="image/*,audio/*,.m4a,.mp3"/>
         <div class="input-wrap">
           <div id="msg-input" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Type a message…" inputmode="text"></div>
           <button class="img-btn" id="btn-img" title="Send image, GIF or audio">
@@ -1249,6 +1249,8 @@ function openRoom(otherUser, otherName){
   // Load last 50 messages once (reduced from 150 to save bandwidth)
   db.ref("messages/"+loadRoom).orderByKey().limitToLast(50)
     .once("value", function(snap){
+      var raw = JSON.stringify(snap.val());
+      console.log("[BANDWIDTH] Chat-open 50-message read size: "+(raw.length/1024).toFixed(1)+" KB");
       snap.forEach(function(d){
         var msg  = d.val();
         // Skip messages that existed before user deleted chat
@@ -1336,7 +1338,7 @@ function openRoom(otherUser, otherName){
 
     // Scroll UP - load older
     if(ml.scrollTop < 120 && window._loadMoreRoom===currentRoom && !window._loadingMore && window._oldestMsgKey){
-      loadPage(window._oldestMsgKey, false);
+      loadOlder();
     }
 
     // Scroll DOWN - load newer (after search jump, search closed)
@@ -1345,6 +1347,58 @@ function openRoom(otherUser, otherName){
       if(distFromBottom < 120) loadNewer();
     }
   };
+
+  function loadOlder(){
+    if(window._loadingMore || !window._oldestMsgKey || window._loadMoreRoom !== currentRoom) return;
+    window._loadingMore = true;
+    var loadRoom = currentRoom;
+    var beforeKey = window._oldestMsgKey;
+
+    db.ref("messages/"+loadRoom).orderByKey().endBefore(beforeKey).limitToLast(50)
+      .once("value", function(snap){
+        if(loadRoom !== currentRoom){ window._loadingMore=false; return; }
+        var raw = JSON.stringify(snap.val());
+        console.log("[BANDWIDTH] Scroll-up load-older read size: "+(raw.length/1024).toFixed(1)+" KB");
+        var msgs=[]; snap.forEach(function(d){ msgs.push({key:d.key,val:d.val()}); });
+        window._loadingMore = false;
+        if(!msgs.length){ window._oldestMsgKey = null; return; } // no more older messages
+
+        var deletedAt = window._deletedAt||0;
+        var prevTop = ml.scrollTop;
+        var prevH = ml.scrollHeight;
+        var frag = document.createDocumentFragment();
+        var fragLastDate = null;
+
+        msgs.forEach(function(m){
+          if(m.val.ts && m.val.ts <= deletedAt) return;
+          var mDate = fmtDate(m.val.ts);
+          if(mDate !== fragLastDate){
+            var s=document.createElement("div"); s.className="date-sep"; s.textContent=mDate;
+            frag.appendChild(s); fragLastDate=mDate;
+          }
+          var mine=m.val.from===me.username;
+          var row=document.createElement("div");
+          row.className="msg-row "+(mine?"mine":"theirs");
+          row.dataset.key=m.key; row.dataset.ts=m.val.ts||0;
+          var qHtml="";
+          if(m.val.replyTo) qHtml='<div class="quoted" data-replykey="'+escHtml(m.val.replyTo.key||"")+'"><div class="quoted-name">'+escHtml(m.val.replyTo.from||"")+'</div><div class="quoted-text">'+escHtml(m.val.replyTo.text||"")+'</div></div>';
+          var bc;
+          if(m.val.type==="gif") bc='<img class="msg-gif" src="'+escHtml(m.val.url)+'" alt="GIF" loading="lazy"/>';
+          else if(m.val.type==="image") bc='<img class="msg-img" src="'+escHtml(m.val.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
+          else if(m.val.type==="audio") bc='<div class="msg-audio-wrap"><audio controls preload="metadata" src="'+escHtml(m.val.url)+'"></audio></div>';
+          else bc='<span class="bubble-text" style="display:block;">'+linkifyText(m.val.text||"")+'</span>';
+          row.innerHTML='<div class="bubble">'+qHtml+bc+'<span class="bubble-meta">'+fmtTime(m.val.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+' </span></div>';
+          var arrow=document.createElement("div"); arrow.className="reply-arrow"; arrow.textContent="↩"; row.appendChild(arrow);
+          frag.appendChild(row);
+        });
+
+        ml.insertBefore(frag, ml.firstChild);
+        window._oldestMsgKey = msgs[0].key;
+        // Preserve scroll position so the view doesn't jump
+        ml.scrollTop = prevTop + (ml.scrollHeight - prevH);
+        applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
+      });
+  }
 
   window._loadingNewer = false;
   function loadNewer(){
@@ -1735,6 +1789,8 @@ function doSearch(q){
   var lower = q.toLowerCase();
 
   db.ref("messages/"+currentRoom).once("value", function(snap){
+    var raw = JSON.stringify(snap.val());
+    console.log("[BANDWIDTH] Search full-room read size: "+(raw.length/1024/1024).toFixed(2)+" MB");
     var all = [];
     snap.forEach(function(d){
       var msg = d.val();
@@ -1819,6 +1875,7 @@ function jumpToSearchResult(){
       window._newestMsgKey = lastRowEl ? lastRowEl.dataset.key : null;
       window._newestLoaded = false; // may have newer messages below
       window._loadingNewer = false;
+      window._loadingMore  = false;
       window._loadMoreRoom = currentRoom;
 
       // Scroll to the target message
@@ -1912,6 +1969,8 @@ function loadLoveStats(){
   // Load ALL messages from both rooms (grey__nikky is the only room)
   var roomKey = [GREY_USER, NIKKY_USER].sort().join("__");
   db.ref("messages/"+roomKey).once("value", function(snap){
+    var raw = JSON.stringify(snap.val());
+    console.log("[BANDWIDTH] Love Stats full message read size: "+(raw.length/1024/1024).toFixed(2)+" MB ("+raw.length+" bytes)");
     var stats = {
       grey:  { count:0, loveWords:0, emojis:{} },
       nikky: { count:0, loveWords:0, emojis:{} }
@@ -2428,7 +2487,7 @@ document.getElementById("img-file-input").addEventListener("change", function(){
   var isImage = file.type.indexOf("image") === 0; // covers image/gif too
 
   if(!isAudio && !isImage){
-    alert("Please pick an image, GIF, or audio file.");
+    alert("Please pick an image, GIF, or audio file (mp3, m4a, wav, etc).");
     this.value = ""; return;
   }
 
