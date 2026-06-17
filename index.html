@@ -368,6 +368,30 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   #gif-panel{left:6px;width:calc(100vw - 12px);}
 }
 
+/* Formatting help panel */
+#fmt-help-panel{
+  position:absolute;bottom:64px;left:58px;
+  width:280px;background:var(--bg-sidebar);
+  border:1px solid var(--border);border-radius:12px;
+  padding:14px;display:none;
+  box-shadow:0 8px 30px rgba(0,0,0,.5);
+  z-index:51;
+  max-height:60vh;overflow-y:auto;
+}
+#fmt-help-panel.open{display:block;}
+.fmt-help-title{font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;}
+.fmt-help-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);}
+.fmt-help-row:last-child{border-bottom:none;}
+.fmt-help-code{
+  font-family:'Courier New',monospace;font-size:11.5px;
+  background:rgba(255,255,255,.08);padding:3px 7px;border-radius:5px;
+  color:var(--accent);white-space:nowrap;flex-shrink:0;min-width:92px;text-align:center;
+}
+.fmt-help-preview{font-size:12.5px;color:var(--text-secondary);flex:1;}
+@media(max-width:680px){
+  #fmt-help-panel{left:6px;width:calc(100vw - 12px);}
+}
+
 /* ── Image send ── */
 .img-btn{background:transparent;color:var(--text-secondary);font-size:20px;border-radius:50%;border:none;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:color .15s;padding:0;}
 .img-btn:hover{color:var(--text-primary);}
@@ -387,16 +411,64 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 .msg-audio-wrap audio{height:34px;flex:1;min-width:0;}
 .msg-audio-wrap audio::-webkit-media-controls-panel{background:rgba(255,255,255,.08);}
 
+/* ── Text formatting commands ── */
+.fmt-bold{font-weight:700;}
+.fmt-italic{font-style:italic;}
+.fmt-strike{text-decoration:line-through;opacity:.75;}
+.fmt-mono{font-family:'Courier New',monospace;background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-size:.92em;}
+.fmt-header{display:block;font-size:1.45em;font-weight:800;line-height:1.3;margin:2px 0;}
+.fmt-underline{text-decoration:underline;}
+.fmt-glow{text-shadow:0 0 8px currentColor,0 0 16px currentColor;font-weight:600;}
+.fmt-shake{display:inline-block;animation:fmtShake .35s ease-in-out 2;}
+@keyframes fmtShake{0%,100%{transform:translateX(0);}20%{transform:translateX(-3px) rotate(-1deg);}40%{transform:translateX(3px) rotate(1deg);}60%{transform:translateX(-2px);}80%{transform:translateX(2px);}}
+.fmt-rainbow{
+  background:linear-gradient(90deg,#f87171,#fbbf24,#34d399,#60a5fa,#a78bfa,#f472b6);
+  background-size:200% auto;-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;font-weight:700;
+  animation:fmtRainbowShift 3s linear infinite;
+}
+@keyframes fmtRainbowShift{to{background-position:200% center;}}
+
+/* Blur-until-click reveal (||spoiler||) */
+.fmt-spoiler{
+  background:rgba(120,120,140,.55);
+  color:transparent;
+  filter:blur(5px);
+  border-radius:5px;padding:0 3px;
+  cursor:pointer;
+  user-select:none;
+  transition:filter .2s,background .2s,color .2s;
+}
+.fmt-spoiler.revealed{
+  filter:blur(0);
+  background:rgba(255,255,255,.08);
+  color:inherit;
+  cursor:text;
+  user-select:text;
+}
+
 #img-viewer{
   position:fixed;inset:0;background:rgba(0,0,0,.92);
   display:none;align-items:center;justify-content:center;
-  z-index:99999;cursor:zoom-out;
+  z-index:99999;
   flex-direction:column;gap:12px;
+  overflow:hidden;
+  touch-action:none;
 }
 #img-viewer.open{display:flex;}
-#img-viewer img{max-width:92vw;max-height:88vh;border-radius:10px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,.8);}
-#img-viewer-close{position:absolute;top:16px;right:20px;font-size:28px;color:#fff;cursor:pointer;opacity:.7;line-height:1;}
+#img-viewer-img{
+  max-width:92vw;max-height:88vh;border-radius:10px;object-fit:contain;
+  box-shadow:0 8px 40px rgba(0,0,0,.8);
+  touch-action:none;
+  will-change:transform;
+  cursor:grab;
+  user-select:none;
+  -webkit-user-drag:none;
+}
+#img-viewer-img.dragging{cursor:grabbing;}
+#img-viewer-close{position:absolute;top:16px;right:20px;font-size:28px;color:#fff;cursor:pointer;opacity:.7;line-height:1;z-index:2;}
 #img-viewer-close:hover{opacity:1;}
+#img-viewer-hint{position:absolute;bottom:24px;left:0;right:0;text-align:center;color:rgba(255,255,255,.5);font-size:12px;pointer-events:none;transition:opacity .3s;}
 
 /* Upload progress */
 .upload-progress{
@@ -743,6 +815,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 <div id="img-viewer">
   <span id="img-viewer-close">✕</span>
   <img id="img-viewer-img" src="" alt=""/>
+  <div id="img-viewer-hint">Pinch or double-tap to zoom · Drag down to close</div>
 </div>
 
 <div id="del-menu"><div class="del-menu-item" id="del-btn">🗑️ Delete message</div></div>
@@ -911,8 +984,24 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
           <div id="gif-grid"><div class="gif-loading">Search for GIFs above ☝️</div></div>
         </div>
 
+        <!-- Text formatting help panel -->
+        <div id="fmt-help-panel">
+          <div class="fmt-help-title">✨ Text formatting</div>
+          <div class="fmt-help-row"><span class="fmt-help-code">*text*</span><span class="fmt-help-preview"><span class="fmt-bold">Bold</span></span></div>
+          <div class="fmt-help-row"><span class="fmt-help-code">_text_</span><span class="fmt-help-preview"><span class="fmt-italic">Italic</span></span></div>
+          <div class="fmt-help-row"><span class="fmt-help-code">__text__</span><span class="fmt-help-preview"><span class="fmt-underline">Underline</span></span></div>
+          <div class="fmt-help-row"><span class="fmt-help-code">~text~</span><span class="fmt-help-preview"><span class="fmt-strike">Strike</span></span></div>
+          <div class="fmt-help-row"><span class="fmt-help-code">```text```</span><span class="fmt-help-preview"><span class="fmt-mono">Mono</span></span></div>
+          <div class="fmt-help-row"><span class="fmt-help-code">#text#</span><span class="fmt-help-preview"><span class="fmt-header" style="font-size:1.1em;">Header</span></span></div>
+          <div class="fmt-help-row"><span class="fmt-help-code">^^text^^</span><span class="fmt-help-preview"><span class="fmt-glow">Glow</span></span></div>
+          <div class="fmt-help-row"><span class="fmt-help-code">!!text!!</span><span class="fmt-help-preview"><span class="fmt-shake">Shake</span></span></div>
+          <div class="fmt-help-row"><span class="fmt-help-code">$$text$$</span><span class="fmt-help-preview"><span class="fmt-rainbow">Rainbow</span></span></div>
+          <div class="fmt-help-row"><span class="fmt-help-code">||text||</span><span class="fmt-help-preview"><span class="fmt-spoiler">Tap to reveal</span></span></div>
+        </div>
+
         <button class="emoji-btn" id="btn-emoji" title="Emoji">😊</button>
         <button class="gif-btn"   id="btn-gif"   title="GIF">GIF</button>
+        <button class="gif-btn"   id="btn-fmt-help" title="Text formatting">Aa</button>
         <input  type="file" id="img-file-input" accept="image/*,audio/*,.m4a,.mp3"/>
         <div class="input-wrap">
           <div id="msg-input" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Type a message…" inputmode="text"></div>
@@ -1056,6 +1145,8 @@ function aColor(n){
     }
     var willOpen = !$("emoji-picker").classList.contains("open");
     $("emoji-picker").classList.toggle("open");
+    $("gif-panel").classList.remove("open");
+    $("fmt-help-panel").classList.remove("open");
     if(willOpen) pushPanelState();
   });
   document.addEventListener("click", function(e){
@@ -1669,6 +1760,7 @@ window.addEventListener("popstate", function(e){
   // Check if any panel is open and close it instead of going back
   var emojiPicker  = document.getElementById("emoji-picker");
   var gifPanel     = document.getElementById("gif-panel");
+  var fmtHelp      = document.getElementById("fmt-help-panel");
   var rpSheet      = document.getElementById("react-picker");
   var ctxMenu      = document.getElementById("ctx-menu");
 
@@ -1679,6 +1771,11 @@ window.addEventListener("popstate", function(e){
   }
   if(gifPanel && gifPanel.classList.contains("open")){
     gifPanel.classList.remove("open");
+    pushPanelState();
+    return;
+  }
+  if(fmtHelp && fmtHelp.classList.contains("open")){
+    fmtHelp.classList.remove("open");
     pushPanelState();
     return;
   }
@@ -2385,12 +2482,23 @@ document.getElementById("btn-gif").addEventListener("click", function(e){
   var panel = document.getElementById("gif-panel");
   var wasOpen = panel.classList.contains("open");
   document.getElementById("emoji-picker").classList.remove("open");
+  document.getElementById("fmt-help-panel").classList.remove("open");
   if(!wasOpen){
     panel.classList.add("open");
     searchGifs(""); // load trending on open
   } else {
     panel.classList.remove("open");
   }
+});
+
+document.getElementById("btn-fmt-help").addEventListener("click", function(e){
+  e.stopPropagation();
+  var panel = document.getElementById("fmt-help-panel");
+  var wasOpen = panel.classList.contains("open");
+  document.getElementById("emoji-picker").classList.remove("open");
+  document.getElementById("gif-panel").classList.remove("open");
+  panel.classList.toggle("open", !wasOpen);
+  if(!wasOpen) pushPanelState();
 });
 
 // GIF search
@@ -2405,6 +2513,13 @@ document.getElementById("gif-search-input").addEventListener("keydown", function
 document.addEventListener("click", function(e){
   var panel = document.getElementById("gif-panel");
   if(!panel.contains(e.target) && e.target!==document.getElementById("btn-gif"))
+    panel.classList.remove("open");
+});
+
+// Close formatting help panel on outside click
+document.addEventListener("click", function(e){
+  var panel = document.getElementById("fmt-help-panel");
+  if(!panel.contains(e.target) && e.target!==document.getElementById("btn-fmt-help"))
     panel.classList.remove("open");
 });
 
@@ -2559,27 +2674,194 @@ window.scrollToMsg = function(key){
 document.getElementById("messages-list").addEventListener("click", function(e){
   var q = e.target.closest(".quoted");
   if(q && q.dataset.replykey) scrollToMsg(q.dataset.replykey);
-});
-window.openImgViewer = function(src){
-  document.getElementById("img-viewer-img").src = src;
-  document.getElementById("img-viewer").classList.add("open");
-};
 
-document.getElementById("img-viewer").addEventListener("click", function(){
-  this.classList.remove("open");
-  document.getElementById("img-viewer-img").src = "";
+  var spoiler = e.target.closest(".fmt-spoiler");
+  if(spoiler){
+    spoiler.classList.toggle("revealed");
+  }
 });
+// ── Image viewer: zoom, pan, drag-to-close ──────────────────────────────────
+(function(){
+  var viewer   = document.getElementById("img-viewer");
+  var img      = document.getElementById("img-viewer-img");
+  var hint     = document.getElementById("img-viewer-hint");
+  var closeBtn = document.getElementById("img-viewer-close");
 
-document.getElementById("img-viewer-close").addEventListener("click", function(e){
-  e.stopPropagation();
-  document.getElementById("img-viewer").classList.remove("open");
-  document.getElementById("img-viewer-img").src = "";
-});
+  var scale = 1, minScale = 1, maxScale = 4;
+  var posX = 0, posY = 0;            // pan offset at current scale
+  var dragStartX = 0, dragStartY = 0;
+  var startPosX = 0, startPosY = 0;
+  var isPanning = false;
+  var isClosing = false;
+  var closeDragStartY = 0, closeDragY = 0;
+  var pinchStartDist = 0, pinchStartScale = 1;
+  var lastTapTime = 0;
+  var hintTimer = null;
 
-// Close viewer on Escape key
-document.addEventListener("keydown", function(e){
-  if(e.key==="Escape") document.getElementById("img-viewer").classList.remove("open");
-});
+  function applyTransform(withTransition){
+    img.style.transition = withTransition ? "transform .25s ease" : "none";
+    img.style.transform = "translate("+posX+"px,"+posY+"px) scale("+scale+")";
+  }
+
+  function resetView(){
+    scale = 1; posX = 0; posY = 0;
+    applyTransform(false);
+    viewer.style.background = "rgba(0,0,0,.92)";
+  }
+
+  window.openImgViewer = function(src){
+    img.src = src;
+    viewer.classList.add("open");
+    resetView();
+    // Show hint briefly then fade
+    hint.style.opacity = "1";
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(function(){ hint.style.opacity = "0"; }, 2500);
+  };
+
+  function closeViewer(){
+    viewer.classList.remove("open");
+    img.src = "";
+    resetView();
+  }
+
+  closeBtn.addEventListener("click", function(e){
+    e.stopPropagation();
+    closeViewer();
+  });
+
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape" && viewer.classList.contains("open")) closeViewer();
+  });
+
+  function dist(t1, t2){
+    var dx = t1.clientX - t2.clientX, dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  // ── Touch events ──
+  img.addEventListener("touchstart", function(e){
+    if(e.touches.length === 2){
+      // Pinch start
+      isClosing = false;
+      pinchStartDist = dist(e.touches[0], e.touches[1]);
+      pinchStartScale = scale;
+    } else if(e.touches.length === 1){
+      var now = Date.now();
+      // Double-tap detection
+      if(now - lastTapTime < 300){
+        if(scale > 1){
+          scale = 1; posX = 0; posY = 0;
+        } else {
+          scale = 2.5; posX = 0; posY = 0;
+        }
+        applyTransform(true);
+        lastTapTime = 0;
+        return;
+      }
+      lastTapTime = now;
+
+      if(scale > 1){
+        // Pan when zoomed in
+        isPanning = true;
+        dragStartX = e.touches[0].clientX;
+        dragStartY = e.touches[0].clientY;
+        startPosX = posX; startPosY = posY;
+      } else {
+        // Drag-to-close when not zoomed
+        isClosing = true;
+        closeDragStartY = e.touches[0].clientY;
+        closeDragY = 0;
+      }
+    }
+  }, {passive:true});
+
+  img.addEventListener("touchmove", function(e){
+    if(e.touches.length === 2){
+      var d = dist(e.touches[0], e.touches[1]);
+      var newScale = pinchStartScale * (d / pinchStartDist);
+      scale = Math.min(maxScale, Math.max(minScale, newScale));
+      applyTransform(false);
+      isClosing = false;
+    } else if(e.touches.length === 1){
+      if(isPanning){
+        posX = startPosX + (e.touches[0].clientX - dragStartX);
+        posY = startPosY + (e.touches[0].clientY - dragStartY);
+        applyTransform(false);
+      } else if(isClosing){
+        closeDragY = e.touches[0].clientY - closeDragStartY;
+        if(closeDragY > 0){
+          var progress = Math.min(closeDragY / 300, 1);
+          img.style.transition = "none";
+          img.style.transform = "translateY("+closeDragY+"px) scale("+(1 - progress*0.25)+")";
+          viewer.style.background = "rgba(0,0,0,"+(0.92 * (1-progress*0.8))+")";
+          hint.style.opacity = "0";
+        }
+      }
+    }
+  }, {passive:true});
+
+  img.addEventListener("touchend", function(e){
+    if(isClosing){
+      if(closeDragY > 110){
+        closeViewer();
+      } else {
+        // Snap back
+        img.style.transition = "transform .25s ease";
+        img.style.transform = "translate(0,0) scale(1)";
+        viewer.style.background = "rgba(0,0,0,.92)";
+      }
+      isClosing = false;
+      closeDragY = 0;
+    }
+    isPanning = false;
+  });
+
+  // ── Mouse wheel zoom (desktop) ──
+  img.addEventListener("wheel", function(e){
+    e.preventDefault();
+    var delta = e.deltaY < 0 ? 0.15 : -0.15;
+    scale = Math.min(maxScale, Math.max(minScale, scale + delta));
+    if(scale === minScale){ posX = 0; posY = 0; }
+    applyTransform(false);
+  }, {passive:false});
+
+  // ── Desktop double-click to zoom ──
+  img.addEventListener("dblclick", function(e){
+    e.stopPropagation();
+    if(scale > 1){
+      scale = 1; posX = 0; posY = 0;
+    } else {
+      scale = 2.5; posX = 0; posY = 0;
+    }
+    applyTransform(true);
+  });
+
+  // ── Desktop click-drag to pan when zoomed ──
+  var mouseDown = false;
+  img.addEventListener("mousedown", function(e){
+    if(scale <= 1) return;
+    mouseDown = true;
+    img.classList.add("dragging");
+    dragStartX = e.clientX; dragStartY = e.clientY;
+    startPosX = posX; startPosY = posY;
+  });
+  document.addEventListener("mousemove", function(e){
+    if(!mouseDown) return;
+    posX = startPosX + (e.clientX - dragStartX);
+    posY = startPosY + (e.clientY - dragStartY);
+    applyTransform(false);
+  });
+  document.addEventListener("mouseup", function(){
+    mouseDown = false;
+    img.classList.remove("dragging");
+  });
+
+  // Click on dark background (not the image) closes viewer — only when not zoomed
+  viewer.addEventListener("click", function(e){
+    if(e.target === viewer && scale <= 1) closeViewer();
+  });
+})();
 
 
 
@@ -3350,8 +3632,51 @@ function insertAtCursor(text){
 // ── URL detection & rendering ─────────────────────────────────────────────────
 var URL_REGEX = /(https?:\/\/[^\s<>"']+)/gi;
 
+// ── WhatsApp-style formatting commands ──────────────────────────────────────
+// *bold*  _italic_  ~strike~  ```mono```  #header#  __underline__
+// ^^glow^^  !!shake!!  $$rainbow$$  ||spoiler|| (blur until tapped)
+function applyTextFormatting(escapedHtml){
+  var html = escapedHtml;
+
+  // Triple-backtick monospace first (so its content isn't touched by other rules)
+  html = html.replace(/```([^`\n]+)```/g, '<span class="fmt-mono">$1</span>');
+
+  // Spoiler / blur-until-click — ||text||
+  html = html.replace(/\|\|([^|\n]+)\|\|/g, function(_, inner){
+    return '<span class="fmt-spoiler" data-spoiler="1">'+inner+'</span>';
+  });
+
+  // Big header — #text#
+  html = html.replace(/(^|\s)#([^#\n]+)#(?=\s|$)/g, '$1<span class="fmt-header">$2</span>');
+
+  // Rainbow — $$text$$
+  html = html.replace(/\$\$([^$\n]+)\$\$/g, '<span class="fmt-rainbow">$1</span>');
+
+  // Glow — ^^text^^
+  html = html.replace(/\^\^([^^\n]+)\^\^/g, '<span class="fmt-glow">$1</span>');
+
+  // Shake — !!text!!
+  html = html.replace(/!!([^!\n]+)!!/g, '<span class="fmt-shake">$1</span>');
+
+  // Underline — __text__ (must come before single _italic_)
+  html = html.replace(/__([^_\n]+)__/g, '<span class="fmt-underline">$1</span>');
+
+  // Bold — *text*
+  html = html.replace(/\*([^*\n]+)\*/g, '<span class="fmt-bold">$1</span>');
+
+  // Italic — _text_
+  html = html.replace(/_([^_\n]+)_/g, '<span class="fmt-italic">$1</span>');
+
+  // Strikethrough — ~text~
+  html = html.replace(/~([^~\n]+)~/g, '<span class="fmt-strike">$1</span>');
+
+  return html;
+}
+
 function linkifyText(text){
-  return escHtml(text).replace(/(https?:\/\/[^\s<>"'&]+)/gi, function(url){
+  var escaped = escHtml(text);
+  var formatted = applyTextFormatting(escaped);
+  return formatted.replace(/(https?:\/\/[^\s<>"'&]+)/gi, function(url){
     return '<a href="'+url+'" target="_blank" rel="noopener noreferrer">'+url+'</a>';
   });
 }
