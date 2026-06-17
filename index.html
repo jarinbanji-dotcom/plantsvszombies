@@ -2483,8 +2483,14 @@ document.getElementById("img-file-input").addEventListener("change", function(){
   if(!file) return;
   if(!currentRoom || !me){ alert("Open a chat first."); return; }
 
-  var isAudio = file.type.indexOf("audio") === 0;
-  var isImage = file.type.indexOf("image") === 0; // covers image/gif too
+  var fileName = (file.name || "").toLowerCase();
+  var audioExts = [".mp3",".m4a",".wav",".ogg",".aac",".flac",".opus",".weba",".amr",".3gp"];
+  var hasAudioExt = audioExts.some(function(e){ return fileName.endsWith(e); });
+
+  // file.type is unreliable for m4a on many systems (often empty, or reports as video/mp4
+  // since m4a shares the MPEG-4 container format) — fall back to extension check
+  var isAudio = file.type.indexOf("audio") === 0 || hasAudioExt;
+  var isImage = file.type.indexOf("image") === 0 && !hasAudioExt; // covers image/gif too
 
   if(!isAudio && !isImage){
     alert("Please pick an image, GIF, or audio file (mp3, m4a, wav, etc).");
@@ -2505,12 +2511,23 @@ document.getElementById("img-file-input").addEventListener("change", function(){
   ml.appendChild(placeholder);
   ml.scrollTop = ml.scrollHeight;
 
-  var ext = (file.name && file.name.includes(".")) ? file.name.split(".").pop() : (isAudio ? "mp3" : "jpg");
+  var ext = (file.name && file.name.includes(".")) ? file.name.split(".").pop().toLowerCase() : (isAudio ? "mp3" : "jpg");
   var folder = isAudio ? "chat-audio" : "chat-images";
   var path = folder+"/"+roomAtSend+"/"+Date.now()+"_"+Math.random().toString(36).slice(2)+"."+ext;
   var storageRef = storage.ref(path);
 
-  storageRef.put(file).then(function(snapshot){
+  // Explicitly set contentType from extension — file.type is unreliable for m4a
+  // (often empty or mislabeled as video/mp4) on Windows/some Android file pickers
+  var contentTypeMap = {
+    mp3:"audio/mpeg", m4a:"audio/mp4", wav:"audio/wav", ogg:"audio/ogg",
+    aac:"audio/aac", flac:"audio/flac", opus:"audio/opus", weba:"audio/webm",
+    amr:"audio/amr", "3gp":"audio/3gpp",
+    jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", gif:"image/gif", webp:"image/webp"
+  };
+  var resolvedType = contentTypeMap[ext] || file.type || (isAudio ? "audio/mpeg" : "image/jpeg");
+  var uploadMetadata = { contentType: resolvedType };
+
+  storageRef.put(file, uploadMetadata).then(function(snapshot){
     return snapshot.ref.getDownloadURL();
   }).then(function(downloadUrl){
     var msgData = {
