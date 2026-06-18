@@ -341,6 +341,13 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   z-index:51;
 }
 #gif-panel.open{display:flex;flex-direction:column;gap:8px;}
+.gif-tab-row{display:flex;gap:6px;}
+.gif-tab{
+  flex:1;padding:7px 10px;background:transparent;border:1px solid var(--border);
+  border-radius:18px;color:var(--text-secondary);font-size:12px;font-weight:600;
+  cursor:pointer;font-family:var(--font);transition:background .15s,color .15s;
+}
+.gif-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .gif-search-row{display:flex;gap:6px;}
 #gif-search-input{
   flex:1;padding:8px 12px;background:var(--bg-input);
@@ -977,7 +984,11 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
         <!-- GIF panel -->
         <div id="gif-panel">
-          <div class="gif-search-row">
+          <div class="gif-tab-row">
+            <button class="gif-tab active" id="gif-tab-search" data-tab="search">🔍 Search</button>
+            <button class="gif-tab" id="gif-tab-sent" data-tab="sent">📁 Sent</button>
+          </div>
+          <div class="gif-search-row" id="gif-search-row">
             <input id="gif-search-input" placeholder="Search GIFs…" />
             <button class="gif-search-btn" id="gif-search-btn">Search</button>
           </div>
@@ -1412,6 +1423,7 @@ function openRoom(otherUser, otherName){
       window._oldestMsgKey = firstRow ? firstRow.dataset.key : null;
       window._loadMoreRoom = currentRoom;
       window._loadingMore  = false;
+      window._loadOlderToken = (window._loadOlderToken||0) + 1; // invalidate any in-flight request from a previous room
       window._deletedAt    = deletedAt;
       // Store newest key and mark as fully loaded (initial load = latest messages)
       var lastRow = ml.querySelector(".msg-row[data-key]:last-child");
@@ -1422,32 +1434,45 @@ function openRoom(otherUser, otherName){
   }); // end deletedAt check
 
   // Load more when scrolled to top
+  var scrollDebounce = null;
   ml.onscroll = function(){
     // Disable all loading while search is active
     var searchBar = document.getElementById("chat-search-bar");
     if(searchBar && searchBar.style.display !== "none") return;
 
-    // Scroll UP - load older
-    if(ml.scrollTop < 120 && window._loadMoreRoom===currentRoom && !window._loadingMore && window._oldestMsgKey){
-      loadOlder();
-    }
+    // Debounce: only act on the LAST scroll event in a rapid burst,
+    // and the loading flags below provide the hard guarantee against double-fires.
+    clearTimeout(scrollDebounce);
+    scrollDebounce = setTimeout(function(){
+      // Scroll UP - load older
+      if(ml.scrollTop < 120 && window._loadMoreRoom===currentRoom && !window._loadingMore && window._oldestMsgKey){
+        loadOlder();
+      }
 
-    // Scroll DOWN - load newer (after search jump, search closed)
-    if(!window._newestLoaded && !window._loadingNewer){
-      var distFromBottom = ml.scrollHeight - ml.scrollTop - ml.clientHeight;
-      if(distFromBottom < 120) loadNewer();
-    }
+      // Scroll DOWN - load newer (after search jump, search closed)
+      if(!window._newestLoaded && !window._loadingNewer){
+        var distFromBottom = ml.scrollHeight - ml.scrollTop - ml.clientHeight;
+        if(distFromBottom < 120) loadNewer();
+      }
+    }, 60);
   };
 
+  window._loadOlderToken = 0;
   function loadOlder(){
     if(window._loadingMore || !window._oldestMsgKey || window._loadMoreRoom !== currentRoom) return;
     window._loadingMore = true;
     var loadRoom = currentRoom;
     var beforeKey = window._oldestMsgKey;
+    var myToken = ++window._loadOlderToken; // uniquely identifies this request
 
     db.ref("messages/"+loadRoom).orderByKey().endBefore(beforeKey).limitToLast(50)
       .once("value", function(snap){
-        if(loadRoom !== currentRoom){ window._loadingMore=false; return; }
+        // Discard if a newer loadOlder request has started since this one fired,
+        // or if the room changed — prevents stale results from corrupting the view
+        if(myToken !== window._loadOlderToken || loadRoom !== currentRoom){
+          window._loadingMore = false;
+          return;
+        }
         var raw = JSON.stringify(snap.val());
         console.log("[BANDWIDTH] Scroll-up load-older read size: "+(raw.length/1024).toFixed(1)+" KB");
         var msgs=[]; snap.forEach(function(d){ msgs.push({key:d.key,val:d.val()}); });
@@ -1488,6 +1513,21 @@ function openRoom(otherUser, otherName){
         // Preserve scroll position so the view doesn't jump
         ml.scrollTop = prevTop + (ml.scrollHeight - prevH);
         applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
+
+        // Apply existing reactions to the newly-prepended rows
+        // (the live reactions listener only re-fires on a NEW reaction event,
+        // not when older rows are simply added to the DOM, so we fetch once here)
+        db.ref("reactions/"+loadRoom).once("value", function(rSnap){
+          var rData = rSnap.val() || {};
+          msgs.forEach(function(m){
+            var msgReacts = rData[m.key];
+            if(!msgReacts || !Object.keys(msgReacts).length) return;
+            var row = ml.querySelector('.msg-row[data-key="'+m.key+'"]');
+            if(!row) return;
+            var bubble = row.querySelector(".bubble");
+            if(bubble) renderReactions(m.key, msgReacts, bubble);
+          });
+        });
       });
   }
 
@@ -1503,10 +1543,15 @@ function openRoom(otherUser, otherName){
     window._loadingNewer = true;
     var loadRoom = currentRoom;
     var afterKey = window._newestMsgKey;
+    window._loadNewerToken = (window._loadNewerToken||0) + 1;
+    var myToken = window._loadNewerToken;
 
     db.ref("messages/"+loadRoom).orderByKey().startAfter(afterKey).limitToFirst(150)
       .once("value", function(snap){
-        if(loadRoom !== currentRoom){ window._loadingNewer=false; return; }
+        if(myToken !== window._loadNewerToken || loadRoom !== currentRoom){
+          window._loadingNewer = false;
+          return;
+        }
         var msgs=[]; snap.forEach(function(d){ msgs.push({key:d.key,val:d.val()}); });
         window._loadingNewer = false;
         if(!msgs.length){ window._newestLoaded=true; return; }
@@ -1543,6 +1588,19 @@ function openRoom(otherUser, otherName){
         ml.scrollTop = prevTop + (ml.scrollHeight - prevH);
         if(msgs.length < 150) window._newestLoaded = true;
         applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
+
+        // Apply existing reactions to the newly-appended rows
+        db.ref("reactions/"+loadRoom).once("value", function(rSnap){
+          var rData = rSnap.val() || {};
+          msgs.forEach(function(m){
+            var msgReacts = rData[m.key];
+            if(!msgReacts || !Object.keys(msgReacts).length) return;
+            var row = ml.querySelector('.msg-row[data-key="'+m.key+'"]');
+            if(!row) return;
+            var bubble = row.querySelector(".bubble");
+            if(bubble) renderReactions(m.key, msgReacts, bubble);
+          });
+        });
       });
   };
 
@@ -2442,15 +2500,85 @@ function searchGifs(query){
     });
 }
 
+// Load previously-sent gifs/images for this room from the lightweight tracking list.
+// Only reads small {url,by,ts,type} entries — the actual files only download
+// when their thumbnail scrolls into view (loading="lazy") or gets tapped.
+function loadSentGifs(){
+  var grid = document.getElementById("gif-grid");
+  if(!currentRoom){ grid.innerHTML = '<div class="gif-loading">Open a chat first.</div>'; return; }
+  grid.innerHTML = '<div class="gif-loading">Loading…</div>';
+
+  db.ref("sentGifs/"+currentRoom).limitToLast(150).once("value", function(snap){
+    var items = [];
+    snap.forEach(function(d){
+      var v = d.val();
+      if(v && v.type === "gif") items.push(v); // only actual GIFs, not photos
+    });
+    items.reverse(); // newest first
+    items = items.slice(0, 60); // cap display after filtering
+
+    if(!items.length){
+      grid.innerHTML = '<div class="gif-loading" style="font-size:12px;padding:20px 12px;">No GIFs sent yet.<br>GIFs you send will show up here.</div>';
+      return;
+    }
+
+    grid.innerHTML = "";
+    items.forEach(function(item){
+      var img = document.createElement("img");
+      img.className = "gif-item";
+      img.src       = item.url;
+      img.alt       = "Sent GIF";
+      img.loading   = "lazy"; // only downloads as it scrolls into view
+      img.addEventListener("click", function(){
+        // Re-send the existing URL — no re-upload needed
+        db.ref("messages/"+currentRoom).push({
+          from: me.username, type: "gif", url: item.url, ts: Date.now()
+        });
+        document.getElementById("gif-panel").classList.remove("open");
+      });
+      grid.appendChild(img);
+    });
+  });
+}
+
+// Tab switching between Search and Sent
+document.getElementById("gif-tab-search").addEventListener("click", function(){
+  document.getElementById("gif-tab-search").classList.add("active");
+  document.getElementById("gif-tab-sent").classList.remove("active");
+  document.getElementById("gif-search-row").style.display = "flex";
+  searchGifs("");
+});
+document.getElementById("gif-tab-sent").addEventListener("click", function(){
+  document.getElementById("gif-tab-sent").classList.add("active");
+  document.getElementById("gif-tab-search").classList.remove("active");
+  document.getElementById("gif-search-row").style.display = "none";
+  loadSentGifs();
+});
+
 function sendGif(url){
   if(!currentRoom||!me) return;
-  db.ref("messages/"+currentRoom).push({from:me.username, type:"gif", url:url, ts:Date.now()});
+  var msgData = {from:me.username, type:"gif", url:url, ts:Date.now()};
+  if(replyingTo) msgData.replyTo = { key:replyingTo.key, from:replyingTo.from, text:replyingTo.text };
+  db.ref("messages/"+currentRoom).push(msgData);
+  trackSentGif(currentRoom, url, me.username, "gif");
+  replyingTo = null;
+  document.getElementById("reply-bar").classList.remove("show");
+}
+
+// Records a lightweight {url, by, ts, type} entry — NOT the file itself —
+// so the "Sent" tab can list everything ever shared without re-downloading
+// the actual images/gifs until one is tapped.
+function trackSentGif(roomId, url, by, type){
+  db.ref("sentGifs/"+roomId).push({ url: url, by: by, ts: Date.now(), type: type||"gif" });
 }
 
 // Upload a pasted/keyboard-shared image File to Storage instead of inlining base64
 function sendPastedImage(file){
   if(!currentRoom || !me || !file) return;
   var roomAtSend = currentRoom;
+  // Capture reply context NOW, since upload is async — a later swipe-reply
+  // while this upload is still in flight shouldn't change what this message replies to
+  var capturedReply = replyingTo;
   var ml = document.getElementById("messages-list");
   var placeholder = document.createElement("div");
   placeholder.className = "msg-row mine";
@@ -2459,20 +2587,55 @@ function sendPastedImage(file){
   ml.scrollTop = ml.scrollHeight;
 
   var ext = (file.type && file.type.includes("/")) ? file.type.split("/")[1] : "jpg";
-  var path = "chat-images/"+roomAtSend+"/"+Date.now()+"_"+Math.random().toString(36).slice(2)+"."+ext;
+  var msgType = (file.type && file.type.indexOf("gif")>=0) ? "gif" : "image";
 
-  storage.ref(path).put(file).then(function(snapshot){
-    return snapshot.ref.getDownloadURL();
-  }).then(function(downloadUrl){
-    db.ref("messages/"+roomAtSend).push({
-      from: me.username, type: "image", url: downloadUrl, ts: Date.now()
-    }, function(err){
+  function finishPastedSend(downloadUrl, wasDuplicate){
+    var msgData = { from: me.username, type: msgType, url: downloadUrl, ts: Date.now() };
+    if(capturedReply) msgData.replyTo = { key:capturedReply.key, from:capturedReply.from, text:capturedReply.text };
+    db.ref("messages/"+roomAtSend).push(msgData, function(err){
       placeholder.remove();
       if(err) alert("Failed to send image: "+err.message);
     });
-  }).catch(function(err){
-    placeholder.remove();
-    alert("Failed to upload image: "+err.message);
+    if(!wasDuplicate) trackSentGif(roomAtSend, downloadUrl, me.username, msgType);
+    // Only clear the global reply state if it's still the same reply we captured
+    // (guards against clearing a newer reply the user set up while this was uploading)
+    if(replyingTo === capturedReply){
+      replyingTo = null;
+      document.getElementById("reply-bar").classList.remove("show");
+    }
+  }
+
+  // Single consistent path used in ALL cases (hash succeeds or fails):
+  // chat-images/{roomId}/{contentKey}.ext — always inside the room folder, never flat.
+  function uploadOrReuse(contentKey){
+    var path = "chat-images/"+roomAtSend+"/"+contentKey+"."+ext;
+    var storageRef = storage.ref(path);
+    storageRef.getDownloadURL().then(function(existingUrl){
+      // Already uploaded before — reuse it, no duplicate upload
+      finishPastedSend(existingUrl, true);
+    }).catch(function(){
+      storageRef.put(file).then(function(snapshot){
+        return snapshot.ref.getDownloadURL();
+      }).then(function(downloadUrl){
+        finishPastedSend(downloadUrl, false);
+      }).catch(function(err){
+        placeholder.remove();
+        alert("Failed to upload image: "+err.message);
+      });
+    });
+  }
+
+  // Content-hash dedup — same file content always maps to the same path
+  file.arrayBuffer().then(function(buf){
+    return crypto.subtle.digest("SHA-256", buf);
+  }).then(function(hashBuf){
+    var hashArr = Array.from(new Uint8Array(hashBuf));
+    var hashHex = hashArr.map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+    uploadOrReuse(hashHex);
+  }).catch(function(){
+    // Hashing failed (rare) — still use the SAME path structure, just without
+    // true content-dedup, so files never split between two different folder shapes
+    uploadOrReuse(Date.now()+"_"+Math.random().toString(36).slice(2));
   });
 }
 
@@ -2485,7 +2648,10 @@ document.getElementById("btn-gif").addEventListener("click", function(e){
   document.getElementById("fmt-help-panel").classList.remove("open");
   if(!wasOpen){
     panel.classList.add("open");
-    searchGifs(""); // load trending on open
+    // Load whichever tab is currently active, not always Search
+    var sentTabActive = document.getElementById("gif-tab-sent").classList.contains("active");
+    if(sentTabActive) loadSentGifs();
+    else searchGifs("");
   } else {
     panel.classList.remove("open");
   }
@@ -2619,6 +2785,8 @@ document.getElementById("img-file-input").addEventListener("change", function(){
   }
 
   var roomAtSend = currentRoom;
+  // Capture reply context NOW since upload is async
+  var capturedReply = replyingTo;
   var ml = document.getElementById("messages-list");
   var placeholder = document.createElement("div");
   placeholder.className = "msg-row mine";
@@ -2628,8 +2796,6 @@ document.getElementById("img-file-input").addEventListener("change", function(){
 
   var ext = (file.name && file.name.includes(".")) ? file.name.split(".").pop().toLowerCase() : (isAudio ? "mp3" : "jpg");
   var folder = isAudio ? "chat-audio" : "chat-images";
-  var path = folder+"/"+roomAtSend+"/"+Date.now()+"_"+Math.random().toString(36).slice(2)+"."+ext;
-  var storageRef = storage.ref(path);
 
   // Explicitly set contentType from extension — file.type is unreliable for m4a
   // (often empty or mislabeled as video/mp4) on Windows/some Android file pickers
@@ -2642,22 +2808,62 @@ document.getElementById("img-file-input").addEventListener("change", function(){
   var resolvedType = contentTypeMap[ext] || file.type || (isAudio ? "audio/mpeg" : "image/jpeg");
   var uploadMetadata = { contentType: resolvedType };
 
-  storageRef.put(file, uploadMetadata).then(function(snapshot){
-    return snapshot.ref.getDownloadURL();
-  }).then(function(downloadUrl){
+  function finishSend(downloadUrl, wasDuplicate){
+    var msgType = isAudio ? "audio" : (file.type.indexOf("gif")>=0 ? "gif" : "image");
     var msgData = {
       from: me.username,
-      type: isAudio ? "audio" : (file.type.indexOf("gif")>=0 ? "gif" : "image"),
+      type: msgType,
       url:  downloadUrl,
       ts:   Date.now()
     };
+    if(capturedReply) msgData.replyTo = { key:capturedReply.key, from:capturedReply.from, text:capturedReply.text };
     db.ref("messages/"+roomAtSend).push(msgData, function(err){
       placeholder.remove();
       if(err) alert("Failed to send: "+err.message);
     });
-  }).catch(function(err){
-    placeholder.remove();
-    alert("Failed to upload: "+err.message);
+    // Don't re-track in Sent list if it's a duplicate of an already-tracked file —
+    // avoids the Sent tab filling up with repeated entries of the same file
+    if(!isAudio && !wasDuplicate) trackSentGif(roomAtSend, downloadUrl, me.username, msgType);
+    // Only clear the global reply state if it's still the same reply we captured
+    if(replyingTo === capturedReply){
+      replyingTo = null;
+      document.getElementById("reply-bar").classList.remove("show");
+    }
+  }
+
+  // Single consistent path used in ALL cases (hash succeeds or fails):
+  // {folder}/{roomId}/{contentKey}.ext — always inside the room folder, never flat.
+  function uploadOrReuse(contentKey){
+    var path = folder+"/"+roomAtSend+"/"+contentKey+"."+ext;
+    var storageRef = storage.ref(path);
+    storageRef.getDownloadURL().then(function(existingUrl){
+      // Already uploaded before — reuse it, skip the upload entirely
+      finishSend(existingUrl, true);
+    }).catch(function(){
+      // Doesn't exist yet — upload it for the first time
+      storageRef.put(file, uploadMetadata).then(function(snapshot){
+        return snapshot.ref.getDownloadURL();
+      }).then(function(downloadUrl){
+        finishSend(downloadUrl, false);
+      }).catch(function(err){
+        placeholder.remove();
+        alert("Failed to upload: "+err.message);
+      });
+    });
+  }
+
+  // Hash the file content (SHA-256) so re-uploading the exact same file
+  // reuses the existing Storage object instead of creating a duplicate copy.
+  file.arrayBuffer().then(function(buf){
+    return crypto.subtle.digest("SHA-256", buf);
+  }).then(function(hashBuf){
+    var hashArr = Array.from(new Uint8Array(hashBuf));
+    var hashHex = hashArr.map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+    uploadOrReuse(hashHex);
+  }).catch(function(){
+    // Hashing failed (rare) — still use the SAME path structure, just without
+    // true content-dedup, so files never split between two different folder shapes
+    uploadOrReuse(Date.now()+"_"+Math.random().toString(36).slice(2));
   });
 
   this.value = ""; // reset so same file can be picked again
