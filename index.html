@@ -896,12 +896,9 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 .bubble-text{
   white-space:pre-wrap;
   word-break:break-word;
-  user-select:none;
-  -webkit-user-select:none;
+  user-select:text;
+  -webkit-user-select:text;
   touch-action:pan-y;
-}
-@media(min-width:681px){
-  .bubble-text{user-select:text;-webkit-user-select:text;}
 }
 
 /* ── In-chat search ── */
@@ -1060,7 +1057,6 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
     <span class="ctx-emoji" data-emoji="🍆">🍆</span>
     <span class="ctx-emoji" id="ctx-more-emoji" style="font-size:18px;color:var(--text-secondary);">＋</span>
     <span class="ctx-divider">|</span>
-    <span class="ctx-action" id="ctx-pin" title="Pin">📌</span>
     <span class="ctx-action" id="ctx-edit" title="Edit">✏️</span>
     <span class="ctx-action danger" id="ctx-delete" title="Delete">🗑️</span>
   </div>
@@ -1160,22 +1156,6 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
     <!-- In-chat search bar -->
     <div id="chat-search-bar" style="display:none;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-sidebar);border-bottom:1px solid var(--border);flex-shrink:0;">
-      <input id="chat-search-input" placeholder="Search messages…" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13.5px;outline:none;font-family:var(--font);"/>
-      <span id="chat-search-count" style="font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
-      <button class="icon-btn" id="chat-search-prev" title="Previous">↑</button>
-      <button class="icon-btn" id="chat-search-next" title="Next">↓</button>
-      <button class="icon-btn" id="chat-search-close" title="Close">✕</button>
-    </div>
-
-    <!-- Pinned message bar -->
-    <div id="pinned-bar" style="display:none;align-items:center;gap:10px;padding:8px 14px;background:var(--bg-sidebar);border-bottom:2px solid var(--accent);flex-shrink:0;cursor:pointer;">
-      <span style="font-size:16px;flex-shrink:0;">📌</span>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:10px;color:var(--accent);font-weight:600;margin-bottom:2px;">Pinned Message</div>
-        <div id="pinned-bar-text" style="font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
-      </div>
-      <button id="pinned-bar-close" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;padding:0;flex-shrink:0;">✕</button>
-    </div>
       <input id="chat-search-input" placeholder="Search messages…" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13.5px;outline:none;font-family:var(--font);"/>
       <span id="chat-search-count" style="font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
       <button class="icon-btn" id="chat-search-prev" title="Previous">↑</button>
@@ -1595,18 +1575,15 @@ function openRoom(otherUser, otherName){
   // so stale keys from the previous room can never be used for this room's loads
   window._oldestMsgKey   = null;
   window._newestMsgKey   = null;
-  window._loadMoreRoom   = null;
+  window._loadMoreRoom   = null;   // null means "no room ready yet" — blocks scroll handler
   window._loadingMore    = false;
   window._loadingNewer   = false;
-  window._newestLoaded   = true;
-  window._loadOlderToken = (window._loadOlderToken||0) + 1;
+  window._newestLoaded   = true;   // prevent scroll-down loads until search jump
+  window._loadOlderToken = (window._loadOlderToken||0) + 1; // invalidate any in-flight requests
   window._loadNewerToken = (window._loadNewerToken||0) + 1;
   window._deletedAt      = 0;
   window._searchJustClosed = false;
-  if(ml.onscroll) ml.onscroll = null;
-  // Reset pinned bar
-  pinnedBar.style.display = "none";
-  pinnedMsgKey = null;
+  if(ml.onscroll) ml.onscroll = null; // remove old scroll listener immediately
 
   // Remove old loading indicator if exists
   var oldInd = document.getElementById("msg-loading");
@@ -1686,8 +1663,7 @@ function openRoom(otherUser, otherName){
 
       applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
       listenReactions(currentRoom);
-      // Load pinned message for this room
-      loadPinnedMessage(currentRoom);
+      window._roomFullyLoaded = true;
       window._roomOpenedAt   = Date.now();
 
       // Store oldest key for load-more
@@ -3466,75 +3442,6 @@ document.getElementById("ctx-delete").addEventListener("click", function(){
   ctxMenu.classList.remove("show");
   document.querySelectorAll(".msg-row.highlighted").forEach(function(r){ r.classList.remove("highlighted"); });
 });
-
-// ── Pin message ────────────────────────────────────────────────────────────────
-var pinnedBar     = document.getElementById("pinned-bar");
-var pinnedBarText = document.getElementById("pinned-bar-text");
-var pinnedMsgKey  = null;
-
-function loadPinnedMessage(roomId){
-  db.ref("pinned/"+roomId).once("value", function(snap){
-    var data = snap.val();
-    if(data && data.key && data.text){
-      pinnedMsgKey = data.key;
-      pinnedBarText.textContent = data.text;
-      pinnedBar.style.display = "flex";
-    } else {
-      pinnedMsgKey = null;
-      pinnedBar.style.display = "none";
-    }
-  });
-}
-
-document.getElementById("ctx-pin").addEventListener("click", function(){
-  if(!ctxTarget || !currentRoom) return;
-  ctxMenu.classList.remove("show");
-  document.querySelectorAll(".msg-row.highlighted").forEach(function(r){ r.classList.remove("highlighted"); });
-
-  var isAlreadyPinned = pinnedMsgKey === ctxTarget.key;
-  if(isAlreadyPinned){
-    // Unpin
-    db.ref("pinned/"+currentRoom).remove();
-    pinnedBar.style.display = "none";
-    pinnedMsgKey = null;
-  } else {
-    // Pin this message
-    var text = ctxTarget.row ? (ctxTarget.row.querySelector(".bubble-text")||{}).innerText || "📷 Media" : "📷 Media";
-    text = text.trim().slice(0, 120);
-    db.ref("pinned/"+currentRoom).set({ key: ctxTarget.key, text: text, by: me.username, ts: Date.now() });
-    pinnedMsgKey = ctxTarget.key;
-    pinnedBarText.textContent = text;
-    pinnedBar.style.display = "flex";
-  }
-});
-
-// Click pinned bar → scroll to that message
-pinnedBar.addEventListener("click", function(e){
-  if(e.target === document.getElementById("pinned-bar-close")) return;
-  if(!pinnedMsgKey) return;
-  var row = document.querySelector('.msg-row[data-key="'+pinnedMsgKey+'"]');
-  if(row){
-    row.scrollIntoView({behavior:"smooth", block:"center"});
-    row.classList.add("highlighted");
-    setTimeout(function(){ row.classList.remove("highlighted"); }, 1500);
-  }
-});
-
-// Close/unpin button on bar
-document.getElementById("pinned-bar-close").addEventListener("click", function(e){
-  e.stopPropagation();
-  db.ref("pinned/"+currentRoom).remove();
-  pinnedBar.style.display = "none";
-  pinnedMsgKey = null;
-});
-
-// Update pin icon in ctx-menu to show if current message is already pinned
-var origShowCtxMenu = showCtxMenu;
-showCtxMenu = function(x, y, key, row, mine){
-  origShowCtxMenu(x, y, key, row, mine);
-  var pinBtn = document.getElementById("ctx-pin");
-  if(pinBtn) pinBtn.textContent = (pinnedMsgKey === key) ? "📍" : "📌";
-};
 
 // ── Reply bar ─────────────────────────────────────────────────────────────────
 function setReplyingTo(key, fromName, text){
