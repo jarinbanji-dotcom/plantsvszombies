@@ -896,9 +896,12 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 .bubble-text{
   white-space:pre-wrap;
   word-break:break-word;
-  user-select:text;
-  -webkit-user-select:text;
+  user-select:none;
+  -webkit-user-select:none;
   touch-action:pan-y;
+}
+@media(min-width:681px){
+  .bubble-text{user-select:text;-webkit-user-select:text;}
 }
 
 /* ── In-chat search ── */
