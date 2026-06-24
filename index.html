@@ -1491,8 +1491,9 @@ function listenUsers(){
 function openRoom(otherUser, otherName){
   // Detach old listener
   if(msgRef && msgCb){ msgRef.off("child_added",msgCb); msgCb=null; }
-  // On mobile: hide all birthday decorations inside chat, show again on back.
-  // On desktop: sidebar always visible, keep decorations showing — but always hide Yeji button.
+  // Hide status FAB inside chat
+  var fab = document.getElementById("status-fab");
+  if(fab) fab.style.display = "none";
 
   currentRoom = rid(me.username, otherUser);
   currentOtherUser = otherUser;
@@ -2020,6 +2021,9 @@ $("btn-signout").addEventListener("click",function(){
 $("back-btn").addEventListener("click",function(){
   $("chat-area").classList.remove("show");
   $("sidebar").classList.add("open");
+  // Show status FAB when back on contacts list
+  var fab = document.getElementById("status-fab");
+  if(fab) fab.style.display = "flex";
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
