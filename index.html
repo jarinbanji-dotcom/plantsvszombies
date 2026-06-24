@@ -995,7 +995,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 #sv-txt-content{font-size:22px;font-weight:700;color:#fff;text-align:center;line-height:1.5;}
 #sv-prev{position:absolute;top:0;left:0;width:30%;height:100%;z-index:2;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
 #sv-next{position:absolute;top:0;right:0;width:70%;height:100%;z-index:2;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
-#sv-seen{position:absolute;bottom:20px;left:16px;font-size:13px;color:rgba(255,255,255,.8);z-index:3;}
+#sv-seen{position:absolute;bottom:0;left:0;right:0;z-index:3;}
 </style>
 </head>
 <body>
@@ -4627,12 +4627,79 @@ window.addEventListener("load", function(){
   svPrev.addEventListener("click", function(){ if(vIdx>0) showItem(vIdx-1); });
   svNext.addEventListener("click", function(){ showItem(vIdx+1); });
 
-  var tsX=0;
-  viewer.addEventListener("touchstart", function(e){ tsX=e.touches[0].clientX; },{passive:true});
-  viewer.addEventListener("touchend", function(e){
-    var dx=e.changedTouches[0].clientX-tsX;
-    if(dx<-50) showItem(vIdx+1); else if(dx>50&&vIdx>0) showItem(vIdx-1);
+  // ── Hold to pause / drag down to close ──────────────────────────────────────
+  var tsX=0, tsY=0, holding=false, dragging=false, dragY=0;
+
+  viewer.addEventListener("touchstart", function(e){
+    tsX = e.touches[0].clientX;
+    tsY = e.touches[0].clientY;
+    dragging = false; dragY = 0;
+    // Hold to pause
+    holding = true;
+    clearTimeout(vTimer); clearTimeout(vFill);
+    // Pause progress bar visually
+    var fills = svProg.querySelectorAll(".sv-fill");
+    fills.forEach(function(f,i){ if(i===vIdx) f.style.transition="none"; });
   },{passive:true});
+
+  viewer.addEventListener("touchmove", function(e){
+    var dy = e.touches[0].clientY - tsY;
+    var dx = Math.abs(e.touches[0].clientX - tsX);
+    if(dy > 10 && dy > dx){
+      dragging = true; dragY = dy;
+      var progress = Math.min(dy/300, 1);
+      viewer.style.transform = "translateY("+dy+"px) scale("+(1-progress*0.1)+")";
+      viewer.style.background = "rgba(0,0,0,"+(1-progress*0.6)+")";
+    }
+  },{passive:true});
+
+  viewer.addEventListener("touchend", function(e){
+    holding = false;
+    if(dragging){
+      if(dragY > 120){
+        // Drag far enough → close
+        viewer.style.transform=""; viewer.style.background="";
+        closeViewer(); dragging=false; return;
+      } else {
+        // Snap back
+        viewer.style.transition="transform .25s ease,background .25s ease";
+        viewer.style.transform=""; viewer.style.background="";
+        setTimeout(function(){ viewer.style.transition=""; },250);
+        dragging=false;
+        // Resume progress
+        resumeProgress(); return;
+      }
+    }
+    // Tap left/right to navigate (only if no drag)
+    var dx = e.changedTouches[0].clientX - tsX;
+    var dy = Math.abs(e.changedTouches[0].clientY - tsY);
+    if(dy < 20){
+      if(dx < -40) showItem(vIdx+1);
+      else if(dx > 40 && vIdx>0) showItem(vIdx-1);
+      else resumeProgress(); // tap in place = resume
+    } else {
+      resumeProgress();
+    }
+  },{passive:true});
+
+  // Resume progress after hold
+  function resumeProgress(){
+    var item = vItems[vIdx];
+    if(!item) return;
+    var fills = svProg.querySelectorAll(".sv-fill");
+    var currentPct = fills[vIdx] ? parseFloat(fills[vIdx].style.width)||0 : 0;
+    var elapsed = (currentPct/100) * DURATION;
+    var remaining = DURATION - elapsed;
+    if(remaining <= 0){ showItem(vIdx+1); return; }
+    var start = Date.now() - elapsed;
+    function tick(){
+      var p=Math.min(100,(Date.now()-start)/DURATION*100);
+      fills.forEach(function(f,i){ if(i===vIdx) f.style.width=p+"%"; });
+      if(p<100) vFill=setTimeout(tick,30);
+    }
+    tick();
+    vTimer=setTimeout(function(){ showItem(vIdx+1); }, remaining);
+  }
 
   document.addEventListener("keydown", function(e){
     if(!viewer.classList.contains("open")) return;
@@ -4684,24 +4751,27 @@ window.addEventListener("load", function(){
           if(u!==me.username&&d[u]&&d[u][me.username]&&d[u][me.username]>=item.ts) seenBy.push(u);
         });
         if(seenBy.length){
-          svSeen.innerHTML='<span style="cursor:pointer;" id="seen-toggle">👁 '+seenBy.length+' seen ▲</span>'
-            +'<div id="seen-list" style="margin-top:6px;display:none;">'
+          svSeen.innerHTML =
+            '<div id="seen-bar" style="padding:10px 0 20px;text-align:center;cursor:pointer;background:linear-gradient(transparent,rgba(0,0,0,.6));">'
+            +'<div style="display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;">'
+            +'<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'20\' height=\'20\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'#fff\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><path d=\'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z\'/><circle cx=\'12\' cy=\'12\' r=\'3\'/></svg>'
+            +'<span style=\'font-size:14px;font-weight:600;\'>'+seenBy.length+'</span>'
+            +'</div>'
+            +'<div id=\'seen-list\' style=\'display:none;margin-top:10px;padding:0 16px;max-height:200px;overflow-y:auto;\'>'
             +seenBy.map(function(u){
-              return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
-                +'<div style="width:28px;height:28px;border-radius:50%;background:'+aColor(u)+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;">'+initials(u)+'</div>'
-                +'<span style="font-size:13px;">'+escHtml(u)+'</span>'
+              return '<div style=\'display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid rgba(255,255,255,.1);\'>'
+                +'<div style=\'width:36px;height:36px;border-radius:50%;background:'+aColor(u)+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;\'>'+initials(u)+'</div>'
+                +'<span style=\'font-size:14px;color:#fff;\'>'+escHtml(u)+'</span>'
                 +'</div>';
-            }).join("")+'</div>';
-          var tog = document.getElementById("seen-toggle");
-          if(tog) tog.addEventListener("click",function(e){
+            }).join("")+'</div>'
+            +'</div>';
+          document.getElementById("seen-bar").addEventListener("click",function(e){
             e.stopPropagation();
             var list=document.getElementById("seen-list");
-            var open=list.style.display==="block";
-            list.style.display=open?"none":"block";
-            tog.textContent="👁 "+seenBy.length+" seen "+(open?"▲":"▼");
+            list.style.display = list.style.display==="block"?"none":"block";
           });
         } else {
-          svSeen.innerHTML='<span style="color:rgba(255,255,255,.5);font-size:12px;">No views yet</span>';
+          svSeen.innerHTML='<div style="padding:10px 0 20px;text-align:center;"><span style="font-size:12px;color:rgba(255,255,255,.5);">No views yet</span></div>';
         }
       });
     } else { svSeen.innerHTML=""; }
