@@ -945,7 +945,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 /* ── WhatsApp Status ── */
 #status-fab{position:fixed;bottom:20px;right:20px;width:54px;height:54px;border-radius:50%;background:var(--accent);color:#fff;font-size:24px;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:8000;box-shadow:0 4px 16px rgba(59,130,246,.55);border:none;transition:transform .15s,background .15s;}
 #status-fab:hover{background:var(--accent-hover);transform:scale(1.07);}
-#status-screen{position:fixed;inset:0;z-index:8001;background:var(--bg-base);display:none;flex-direction:column;}
+#status-screen{position:fixed;inset:0;z-index:8001;background:var(--bg-base);display:none;flex-direction:column;user-select:none;-webkit-user-select:none;}
 #status-screen.open{display:flex;}
 #ss-header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--bg-sidebar);border-bottom:1px solid var(--border);flex-shrink:0;}
 #ss-back{font-size:22px;cursor:pointer;color:var(--text-primary);line-height:1;}
@@ -963,7 +963,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 .ss-name{font-size:14px;font-weight:600;color:var(--text-primary);}
 .ss-time{font-size:12px;color:var(--text-muted);margin-top:2px;}
 /* Post sheet */
-#ss-post-bg{position:fixed;inset:0;z-index:8002;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;}
+#ss-post-bg{position:fixed;inset:0;z-index:8002;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;user-select:none;-webkit-user-select:none;}
 #ss-post-bg.open{display:flex;}
 #ss-post-sheet{background:var(--bg-sidebar);border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:20px 20px 32px;}
 #ss-post-sheet h3{font-size:16px;font-weight:700;margin-bottom:16px;text-align:center;}
@@ -977,7 +977,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 #ss-text-share{margin-top:8px;width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--font);}
 #ss-cancel{margin-top:8px;width:100%;padding:10px;background:transparent;color:var(--text-muted);border:none;font-size:14px;cursor:pointer;font-family:var(--font);}
 /* Viewer */
-#ss-viewer{position:fixed;inset:0;z-index:8003;background:#000;display:none;flex-direction:column;-webkit-tap-highlight-color:transparent;}
+#ss-viewer{position:fixed;inset:0;z-index:8003;background:#000;display:none;flex-direction:column;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
 #ss-viewer.open{display:flex;}
 #sv-prog{position:absolute;top:12px;left:10px;right:10px;display:flex;gap:3px;z-index:3;}
 .sv-seg{flex:1;height:3px;background:rgba(255,255,255,.35);border-radius:2px;overflow:hidden;}
@@ -4828,7 +4828,7 @@ window.addEventListener("load", function(){
 </div>
 
 <!-- Status Caption Screen -->
-<div id="ss-caption-screen" style="display:none;position:fixed;inset:0;z-index:8004;background:#000;flex-direction:column;">
+<div id="ss-caption-screen" style="display:none;position:fixed;inset:0;z-index:8004;background:#000;flex-direction:column;user-select:none;-webkit-user-select:none;">
   <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;flex-shrink:0;">
     <span id="ss-cap-back" style="font-size:22px;cursor:pointer;color:#fff;line-height:1;">←</span>
     <span style="font-size:16px;font-weight:600;color:#fff;flex:1;">Add Caption</span>
