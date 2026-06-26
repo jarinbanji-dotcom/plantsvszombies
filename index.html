@@ -1146,6 +1146,24 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
         <div class="spinner"></div>
         <span>Loading messages…</span>
       </div>
+      <!-- Music mini player (appears above messages when music playing) -->
+      <div id="music-mini-bar" style="display:none;flex-direction:column;background:var(--bg-sidebar);border-bottom:1px solid var(--border);flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;">
+          <div style="width:36px;height:36px;border-radius:6px;background:var(--bg-hover);flex-shrink:0;overflow:hidden;">
+            <img id="music-mini-img" src="" style="width:100%;height:100%;object-fit:cover;" alt=""/>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div id="music-mini-title" style="font-size:13px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+            <div id="music-mini-channel" style="font-size:11px;color:var(--text-muted);margin-top:1px;"></div>
+          </div>
+          <button id="music-mini-playpause" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-primary);padding:4px;line-height:1;">▶</button>
+          <button id="music-mini-stop" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);padding:4px;line-height:1;">⏹</button>
+        </div>
+        <!-- Actual YouTube embed — must be visible (not off-screen) for audio to work -->
+        <div style="width:100%;height:52px;overflow:hidden;">
+          <div id="music-yt-player" style="width:100%;height:195px;margin-top:-78px;"></div>
+        </div>
+      </div>
       <div id="messages-list" style="visibility:hidden;"></div>
 
       <div id="typing-indicator"></div>
@@ -1174,6 +1192,16 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
           </div>
           <div class="emoji-tabs" id="emoji-tabs"></div>
           <div class="emoji-grid" id="emoji-grid"></div>
+        </div>
+
+        <!-- Music search panel -->
+        <div id="music-panel" style="display:none;flex-direction:column;position:absolute;bottom:64px;left:0;right:0;height:320px;background:var(--bg-sidebar);border-top:1px solid var(--border);z-index:50;">
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);">
+            <span style="font-size:16px;">🎵</span>
+            <input id="music-search-input" placeholder="Search YouTube music…" style="flex:1;padding:7px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13px;outline:none;font-family:var(--font);"/>
+            <button id="music-search-btn" style="padding:7px 14px;background:var(--accent);color:#fff;border:none;border-radius:20px;font-size:13px;cursor:pointer;font-family:var(--font);">Search</button>
+          </div>
+          <div id="music-results" style="flex:1;overflow-y:auto;padding:6px 0;"></div>
         </div>
 
         <!-- GIF panel -->
@@ -1206,7 +1234,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
         <button class="emoji-btn" id="btn-emoji" title="Emoji">😊</button>
         <button class="gif-btn"   id="btn-gif"   title="GIF">GIF</button>
-        <button class="gif-btn"   id="btn-fmt-help" title="Text formatting">Aa</button>
+        <button class="gif-btn"   id="btn-music" title="Music">🎵</button>
         <input  type="file" id="img-file-input" accept="image/*,audio/*,.m4a,.mp3"/>
         <div class="input-wrap">
           <div id="msg-input" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Type a message…" inputmode="text"></div>
@@ -2880,16 +2908,6 @@ document.getElementById("btn-gif").addEventListener("click", function(e){
   }
 });
 
-document.getElementById("btn-fmt-help").addEventListener("click", function(e){
-  e.stopPropagation();
-  var panel = document.getElementById("fmt-help-panel");
-  var wasOpen = panel.classList.contains("open");
-  document.getElementById("emoji-picker").classList.remove("open");
-  document.getElementById("gif-panel").classList.remove("open");
-  panel.classList.toggle("open", !wasOpen);
-  if(!wasOpen) pushPanelState();
-});
-
 // GIF search
 document.getElementById("gif-search-btn").addEventListener("click", function(){
   searchGifs(document.getElementById("gif-search-input").value.trim());
@@ -2902,13 +2920,6 @@ document.getElementById("gif-search-input").addEventListener("keydown", function
 document.addEventListener("click", function(e){
   var panel = document.getElementById("gif-panel");
   if(!panel.contains(e.target) && e.target!==document.getElementById("btn-gif"))
-    panel.classList.remove("open");
-});
-
-// Close formatting help panel on outside click
-document.addEventListener("click", function(e){
-  var panel = document.getElementById("fmt-help-panel");
-  if(!panel.contains(e.target) && e.target!==document.getElementById("btn-fmt-help"))
     panel.classList.remove("open");
 });
 
@@ -4783,6 +4794,193 @@ window.addEventListener("load", function(){
   }
 });
 
+// ── Shared Music Player (iframe src swap — no API required) ──────────────────
+var YOUTUBE_API_KEY = "YOUR_YOUTUBE_API_KEY_HERE"; // ← paste your key here
+
+var musicPanel     = document.getElementById("music-panel");
+var musicMiniBar   = document.getElementById("music-mini-bar");
+var musicMiniImg   = document.getElementById("music-mini-img");
+var musicMiniTitle = document.getElementById("music-mini-title");
+var musicMiniChan  = document.getElementById("music-mini-channel");
+var musicPlayPause = document.getElementById("music-mini-playpause");
+var musicStop      = document.getElementById("music-mini-stop");
+var musicSearchInp = document.getElementById("music-search-input");
+var musicSearchBtn = document.getElementById("music-search-btn");
+var musicResults   = document.getElementById("music-results");
+var musicIsPlaying = false;
+var musicCurrentId = null;
+var musicCurrentMeta = {};
+var musicListener  = null;
+
+// Get or create the iframe inside music-yt-player div
+function getMusicIframe(){
+  var wrap = document.getElementById("music-yt-player");
+  var iframe = wrap.querySelector("iframe");
+  if(!iframe){
+    iframe = document.createElement("iframe");
+    iframe.style.cssText = "width:100%;height:195px;border:none;display:block;";
+    iframe.allow = "autoplay; encrypted-media";
+    iframe.setAttribute("allowfullscreen","");
+    wrap.appendChild(iframe);
+  }
+  return iframe;
+}
+
+function loadVideo(videoId, autoplay){
+  var iframe = getMusicIframe();
+  iframe.src = "https://www.youtube.com/embed/"+videoId
+    +"?autoplay="+(autoplay?1:0)
+    +"&enablejsapi=0"
+    +"&origin="+encodeURIComponent(window.location.href)
+    +"&t=0";
+}
+
+function playVideo(videoId, title, channel, thumb){
+  musicCurrentId   = videoId;
+  musicCurrentMeta = {videoId:videoId, title:title, channel:channel, thumb:thumb};
+  musicIsPlaying   = true;
+  musicPlayPause.textContent = "⏸";
+  musicMiniImg.src           = thumb||"";
+  musicMiniTitle.textContent = title;
+  musicMiniChan.textContent  = channel;
+  musicMiniBar.style.display = "flex";
+  loadVideo(videoId, true);
+  broadcastMusic({action:"play", videoId:videoId, title:title, channel:channel, thumb:thumb, ts:Date.now()});
+  musicPanel.style.display   = "none";
+}
+
+function broadcastMusic(data){
+  if(!currentRoom||!me) return;
+  data.by = me.username;
+  db.ref("music/"+currentRoom).set(data);
+}
+
+function hideMiniPlayer(){
+  musicMiniBar.style.display = "none";
+  var wrap = document.getElementById("music-yt-player");
+  var iframe = wrap.querySelector("iframe");
+  if(iframe){ iframe.src=""; }
+  musicCurrentId = null;
+  musicIsPlaying = false;
+  musicPlayPause.textContent = "▶";
+}
+
+// Play/pause — reload iframe with/without autoplay
+musicPlayPause.addEventListener("click", function(){
+  if(!musicCurrentId) return;
+  if(musicIsPlaying){
+    musicIsPlaying = false;
+    musicPlayPause.textContent = "▶";
+    loadVideo(musicCurrentId, false);
+    broadcastMusic({action:"pause", videoId:musicCurrentId, ts:Date.now()});
+  } else {
+    musicIsPlaying = true;
+    musicPlayPause.textContent = "⏸";
+    loadVideo(musicCurrentId, true);
+    broadcastMusic({action:"play", videoId:musicCurrentId,
+      title:musicCurrentMeta.title, channel:musicCurrentMeta.channel,
+      thumb:musicCurrentMeta.thumb, ts:Date.now()});
+  }
+});
+
+musicStop.addEventListener("click", function(){
+  broadcastMusic({action:"stop", ts:Date.now()});
+  hideMiniPlayer();
+});
+
+// Listen for commands from the other person
+function listenMusic(roomId){
+  if(musicListener) db.ref("music/"+roomId).off("value", musicListener);
+  musicListener = db.ref("music/"+roomId).on("value", function(snap){
+    var d = snap.val();
+    if(!d||!d.by||d.by===me.username) return;
+    if(d.action==="play" && d.videoId){
+      musicCurrentId   = d.videoId;
+      musicCurrentMeta = d;
+      musicIsPlaying   = true;
+      musicPlayPause.textContent = "⏸";
+      musicMiniImg.src           = d.thumb||"";
+      musicMiniTitle.textContent = d.title||d.videoId;
+      musicMiniChan.textContent  = d.channel||"";
+      musicMiniBar.style.display = "flex";
+      loadVideo(d.videoId, true);
+    } else if(d.action==="pause"){
+      musicIsPlaying = false;
+      musicPlayPause.textContent = "▶";
+      if(musicCurrentId) loadVideo(musicCurrentId, false);
+    } else if(d.action==="stop"){
+      hideMiniPlayer();
+    }
+  });
+}
+
+// Music button toggle
+document.getElementById("btn-music").addEventListener("click", function(e){
+  e.stopPropagation();
+  var isOpen = musicPanel.style.display==="flex";
+  document.getElementById("gif-panel").classList.remove("open");
+  document.getElementById("emoji-picker").classList.remove("open");
+  musicPanel.style.display = isOpen?"none":"flex";
+  if(!isOpen) musicSearchInp.focus();
+});
+
+document.addEventListener("click", function(e){
+  if(musicPanel && !musicPanel.contains(e.target) && e.target!==document.getElementById("btn-music"))
+    musicPanel.style.display="none";
+});
+
+// Search YouTube via Data API v3
+function searchYouTube(query){
+  if(!query.trim()) return;
+  if(YOUTUBE_API_KEY==="YOUR_YOUTUBE_API_KEY_HERE"){
+    musicResults.innerHTML='<div style="padding:16px;text-align:center;color:var(--danger);font-size:12px;">Please add your YouTube API key in the code first.</div>';
+    return;
+  }
+  musicResults.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">Searching…</div>';
+  var url="https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=12&q="+encodeURIComponent(query)+"&key="+YOUTUBE_API_KEY;
+  fetch(url).then(function(r){ return r.json(); }).then(function(data){
+    if(data.error){
+      musicResults.innerHTML='<div style="padding:16px;text-align:center;color:var(--danger);font-size:12px;">API error: '+escHtml(data.error.message)+'</div>';
+      return;
+    }
+    if(!data.items||!data.items.length){
+      musicResults.innerHTML='<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px;">No results.</div>';
+      return;
+    }
+    musicResults.innerHTML="";
+    data.items.forEach(function(item){
+      var vid   = item.id.videoId;
+      var title = item.snippet.title;
+      var chan   = item.snippet.channelTitle;
+      var thumb  = item.snippet.thumbnails.default.url;
+      var row   = document.createElement("div");
+      row.style.cssText="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;user-select:none;";
+      row.addEventListener("mouseenter",function(){row.style.background="var(--bg-hover)";});
+      row.addEventListener("mouseleave",function(){row.style.background="";});
+      row.innerHTML=
+        '<img src="'+escHtml(thumb)+'" style="width:48px;height:36px;border-radius:4px;object-fit:cover;flex-shrink:0;"/>'
+        +'<div style="flex:1;min-width:0;">'
+          +'<div style="font-size:13px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escHtml(title)+'</div>'
+          +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">'+escHtml(chan)+'</div>'
+        +'</div>'
+        +'<span style="font-size:20px;color:var(--accent);flex-shrink:0;">▶</span>';
+      row.addEventListener("click",function(){ playVideo(vid,title,chan,thumb); });
+      musicResults.appendChild(row);
+    });
+  }).catch(function(){
+    musicResults.innerHTML='<div style="padding:16px;text-align:center;color:var(--danger);font-size:12px;">Search failed.</div>';
+  });
+}
+
+musicSearchBtn.addEventListener("click", function(){ searchYouTube(musicSearchInp.value); });
+musicSearchInp.addEventListener("keydown", function(e){ if(e.key==="Enter") searchYouTube(this.value); });
+
+// Hook into openRoom
+var _origOpenRoom = openRoom;
+openRoom = function(otherUser, otherName){
+  _origOpenRoom(otherUser, otherName);
+  listenMusic(rid(me.username, otherUser));
+};
 </script>
 
 <!-- WhatsApp Status -->
