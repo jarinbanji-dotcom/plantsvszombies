@@ -1160,7 +1160,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
           <button id="music-mini-stop" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);padding:4px;line-height:1;">⏹</button>
         </div>
         <!-- YouTube plays in popup window - no embed needed -->
-        <div id="music-yt-player" style="display:none;"></div>
+        <div id="music-yt-player" style="width:100%;height:60px;overflow:hidden;flex-shrink:0;"></div>
       </div>
       <div id="messages-list" style="visibility:hidden;"></div>
 
@@ -4830,23 +4830,29 @@ var musicCurrentMeta = {};
 var musicListener  = null;
 
 // Get or create the iframe inside music-yt-player div
-var musicPopup = null;
+var musicIframe = null;
+
+function getOrCreateIframe(){
+  var wrap = document.getElementById("music-yt-player");
+  if(!wrap) return null;
+  if(!musicIframe){
+    musicIframe = document.createElement("iframe");
+    musicIframe.style.cssText = "width:100%;height:100%;border:none;display:block;";
+    musicIframe.allow = "autoplay; encrypted-media; fullscreen";
+    musicIframe.setAttribute("allowfullscreen","");
+    wrap.appendChild(musicIframe);
+  }
+  return musicIframe;
+}
 
 function loadVideo(videoId, autoplay){
-  var url = "https://www.youtube.com/watch?v="+videoId;
-  if(autoplay){
-    // Open YouTube in a small popup window — works on file:// unlike embeds
-    if(musicPopup && !musicPopup.closed){
-      musicPopup.location.href = url;
-    } else {
-      musicPopup = window.open(url, "yt-music",
-        "width=400,height=300,toolbar=0,menubar=0,location=0,status=0,scrollbars=0");
-    }
-  } else {
-    // Pause: just focus the popup so user can pause manually
-    // (can't control external window — user pauses in popup)
-    if(musicPopup && !musicPopup.closed) musicPopup.focus();
-  }
+  var iframe = getOrCreateIframe();
+  if(!iframe) return;
+  iframe.src = "https://www.youtube.com/embed/"+videoId
+    +"?autoplay="+(autoplay?1:0)
+    +"&enablejsapi=0"
+    +"&rel=0"
+    +"&modestbranding=1";
 }
 
 function playVideo(videoId, title, channel, thumb){
@@ -4871,7 +4877,7 @@ function broadcastMusic(data){
 
 function hideMiniPlayer(){
   musicMiniBar.style.display = "none";
-  if(musicPopup && !musicPopup.closed) musicPopup.close();
+  if(musicIframe) musicIframe.src = "";
   musicCurrentId = null;
   musicIsPlaying = false;
   musicPlayPause.textContent = "▶";
@@ -4883,7 +4889,7 @@ musicPlayPause.addEventListener("click", function(){
   if(musicIsPlaying){
     musicIsPlaying = false;
     musicPlayPause.textContent = "▶";
-    loadVideo(musicCurrentId, false);
+    if(musicIframe) musicIframe.src = "";
     broadcastMusic({action:"pause", videoId:musicCurrentId, ts:Date.now()});
   } else {
     musicIsPlaying = true;
@@ -4915,14 +4921,11 @@ function listenMusic(roomId){
       musicMiniTitle.textContent = d.title||d.videoId;
       musicMiniChan.textContent  = d.channel||"";
       musicMiniBar.style.display = "flex";
-      // Open YouTube popup on receiver side too
-      var url = "https://www.youtube.com/watch?v="+d.videoId;
-      if(musicPopup && !musicPopup.closed){ musicPopup.location.href=url; }
-      else { musicPopup=window.open(url,"yt-music","width=400,height=300,toolbar=0,menubar=0,location=0,status=0"); }
+      loadVideo(d.videoId, true);
     } else if(d.action==="pause"){
       musicIsPlaying = false;
       musicPlayPause.textContent = "▶";
-      if(musicPopup && !musicPopup.closed) musicPopup.focus();
+      if(musicIframe) musicIframe.src = "";
     } else if(d.action==="stop"){
       hideMiniPlayer();
     }
