@@ -4809,7 +4809,7 @@ function getOrCreateIframe(){
   if(!wrap) return null;
   if(!musicIframe){
     musicIframe = document.createElement("iframe");
-    musicIframe.style.cssText = "width:100%;height:100%;border:none;display:block;position:absolute;top:0;left:0;";
+    musicIframe.style.cssText = "position:absolute;top:-30px;left:0;width:100%;height:calc(100% + 80px);border:none;display:block;";
     musicIframe.allow = "autoplay; encrypted-media; fullscreen";
     musicIframe.setAttribute("allowfullscreen","");
     wrap.appendChild(musicIframe);
