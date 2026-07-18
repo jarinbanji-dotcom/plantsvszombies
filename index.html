@@ -1160,7 +1160,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
           <button id="music-mini-stop" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);padding:4px;line-height:1;">⏹</button>
         </div>
         <!-- YouTube plays in popup window - no embed needed -->
-        <div id="music-yt-player" style="width:100%;height:60px;overflow:hidden;flex-shrink:0;"></div>
+        <div id="music-yt-player" style="width:100%;height:60px;overflow:hidden;flex-shrink:0;position:relative;"></div>
       </div>
       <div id="messages-list" style="visibility:hidden;"></div>
 
@@ -2688,10 +2688,10 @@ document.getElementById("msg-input").addEventListener("blur", function(){
 });
 
 
-// ── GIF panel (Tenor v1 — official free demo key, no registration needed) ────
-// Tenor v1 demo key "LIVDSRZULELA" is officially documented by Google/Tenor
-// for development use. For production get a free key at tenor.com/developer
-var TENOR_KEY = "LIVDSRZULELA"; // official Tenor demo key
+// ── GIF panel — Giphy API ─────────────────────────────────────────────────────
+// Get a free key at developers.giphy.com (free tier: 100 requests/hour)
+// Replace the key below with yours. The one here is a public beta key for testing.
+var GIPHY_KEY = "1A9fiy8YoWbW8m1eqFNJMZEGRml48siM"; // Giphy public beta key (limited, get your own)
 
 function renderGifResults(results, grid){
   grid.innerHTML = "";
@@ -2699,15 +2699,11 @@ function renderGifResults(results, grid){
     grid.innerHTML = '<div class="gif-loading">No GIFs found</div>'; return;
   }
   results.forEach(function(gif){
-    // Tenor v1 media array
-    var media  = gif.media && gif.media[0];
-    if(!media) return;
-    var preview = (media.tinygif  && media.tinygif.url)  ||
-                  (media.mediumgif&& media.mediumgif.url)||
-                  (media.gif      && media.gif.url) || "";
-    var full    = (media.gif      && media.gif.url)      ||
-                  (media.mediumgif&& media.mediumgif.url) || preview;
+    var preview = gif.images && gif.images.fixed_height_small && gif.images.fixed_height_small.url;
+    var full    = gif.images && gif.images.original && gif.images.original.url;
+    if(!preview && gif.images && gif.images.downsized) preview = gif.images.downsized.url;
     if(!preview) return;
+    full = full || preview;
 
     var img = document.createElement("img");
     img.className = "gif-item";
@@ -2727,37 +2723,17 @@ function searchGifs(query){
   grid.innerHTML = '<div class="gif-loading">Loading…</div>';
 
   var apiUrl = query
-    ? "https://g.tenor.com/v1/search?q="+encodeURIComponent(query)+"&key="+TENOR_KEY+"&limit=20&media_filter=minimal&contentfilter=medium"
-    : "https://g.tenor.com/v1/trending?key="+TENOR_KEY+"&limit=20&media_filter=minimal&contentfilter=medium";
+    ? "https://api.giphy.com/v1/gifs/search?api_key="+GIPHY_KEY+"&q="+encodeURIComponent(query)+"&limit=20&rating=pg-13"
+    : "https://api.giphy.com/v1/gifs/trending?api_key="+GIPHY_KEY+"&limit=20&rating=pg-13";
 
-  // Try direct first (works on https:// hosted pages)
   fetch(apiUrl)
-    .then(function(r){
-      if(!r.ok) throw new Error("status "+r.status);
-      return r.json();
-    })
-    .then(function(data){ renderGifResults(data.results, grid); })
+    .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(data){ renderGifResults(data.data, grid); })
     .catch(function(){
-      // Fallback: CORS proxy (for file:// or restricted origins)
-      var proxied = "https://api.allorigins.win/get?url="+encodeURIComponent(apiUrl);
-      fetch(proxied)
-        .then(function(r){ return r.json(); })
-        .then(function(w){
-          var data = typeof w.contents==="string" ? JSON.parse(w.contents) : w.contents;
-          renderGifResults(data.results, grid);
-        })
-        .catch(function(){
-          // Last fallback: corsproxy.io
-          fetch("https://corsproxy.io/?"+encodeURIComponent(apiUrl))
-            .then(function(r){ return r.json(); })
-            .then(function(data){ renderGifResults(data.results, grid); })
-            .catch(function(){
-              grid.innerHTML='<div class="gif-loading" style="font-size:12px;line-height:1.6;padding:12px;">'+
-                '😔 GIFs failed to load.<br><br>'+
-                'Get a free key at <b>tenor.com/developer</b><br>'+
-                'then replace TENOR_KEY in the HTML file.</div>';
-            });
-        });
+      grid.innerHTML='<div class="gif-loading" style="font-size:12px;line-height:1.8;padding:12px;">'
+        +'😔 GIFs failed to load.<br><br>'
+        +'Get a free API key at<br><b>developers.giphy.com</b><br>'
+        +'then replace GIPHY_KEY in the code.</div>';
     });
 }
 
@@ -3939,10 +3915,6 @@ function markSeen(roomId){
 
 function listenSeen(roomId, otherUser){
   if(seenRef && seenCbFn){ seenRef.off("value", seenCbFn); seenRef=null; }
-  stopPresenceListeners();
-  Object.keys(unreadListeners).forEach(function(r){ db.ref("unread/"+r+"/"+me.username).off("value", unreadListeners[r]); });
-  unreadListeners = {};
-  if(me) db.ref("presence/"+me.username).update({ online:false, lastSeen:Date.now() });
   // Init cache
   if(!window._seenCache) window._seenCache = {};
   // Fetch once immediately to populate cache before messages render
@@ -4837,7 +4809,7 @@ function getOrCreateIframe(){
   if(!wrap) return null;
   if(!musicIframe){
     musicIframe = document.createElement("iframe");
-    musicIframe.style.cssText = "width:100%;height:100%;border:none;display:block;";
+    musicIframe.style.cssText = "width:100%;height:100%;border:none;display:block;position:absolute;top:0;left:0;";
     musicIframe.allow = "autoplay; encrypted-media; fullscreen";
     musicIframe.setAttribute("allowfullscreen","");
     wrap.appendChild(musicIframe);
