@@ -249,12 +249,32 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 .placeholder-icon{font-size:52px;opacity:.25;}
 
 /* Messages area */
+/* ── Chat background image ── */
 #chat-view-active{
   flex:1;
   display:none;
   flex-direction:column;
   overflow:hidden;
   min-height:0;
+  position:relative;
+}
+/* Background image layer — set dynamically via Firebase */
+#chat-view-active.has-bg::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:var(--chat-bg-url);
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+  opacity:0.15;
+  z-index:0;
+  pointer-events:none;
+}
+/* Make sure messages sit above the background */
+#chat-view-active > *{
+  position:relative;
+  z-index:1;
 }
 
 #messages-list{
@@ -1246,6 +1266,21 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
         <button class="gif-btn"   id="btn-gif"   title="GIF">GIF</button>
         <button class="gif-btn"   id="btn-music" title="Music">🎵</button>
         <input  type="file" id="img-file-input" accept="image/*,audio/*,.m4a,.mp3"/>
+        <input  type="file" id="bg-file-input"  accept="image/*" style="display:none;"/>
+        <!-- File action menu -->
+        <div id="file-action-menu" style="display:none;position:absolute;bottom:64px;left:50%;transform:translateX(-50%);background:var(--bg-sidebar);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:52;min-width:200px;overflow:hidden;">
+          <div id="file-action-send" style="display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;font-size:14px;color:var(--text-primary);transition:background .15s;">
+            <span style="font-size:18px;">📎</span> Send Image / Audio
+          </div>
+          <div style="height:1px;background:var(--border);"></div>
+          <div id="file-action-bg" style="display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;font-size:14px;color:var(--text-primary);transition:background .15s;">
+            <span style="font-size:18px;">🖼️</span> Set Chat Background
+          </div>
+          <div style="height:1px;background:var(--border);"></div>
+          <div id="file-action-clearbg" style="display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;font-size:14px;color:var(--danger);transition:background .15s;">
+            <span style="font-size:18px;">🗑️</span> Remove Background
+          </div>
+        </div>
         <div class="input-wrap">
           <div id="msg-input" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Type a message…" inputmode="text"></div>
           <button class="img-btn" id="btn-img" title="Send image, GIF or audio">
@@ -1570,6 +1605,7 @@ function openRoom(otherUser, otherName){
   listenRain(currentRoom);
   markSeen(currentRoom);
   listenSeen(currentRoom, otherUser);
+  listenChatBg(currentRoom);
   // Wipe any stale rain data on room open
   db.ref("rain/"+currentRoom).remove();
 
@@ -2691,7 +2727,7 @@ document.getElementById("msg-input").addEventListener("blur", function(){
 // ── GIF panel — Giphy API ─────────────────────────────────────────────────────
 // Get a free key at developers.giphy.com (free tier: 100 requests/hour)
 // Replace the key below with yours. The one here is a public beta key for testing.
-var GIPHY_KEY = "1A9fiy8YoWbW8m1eqFNJMZEGRml48siM"; // Giphy public beta key (limited, get your own)
+var GIPHY_KEY = "1A9fiy8YoWbW8m1eqFNJMZEGRml48siM" // Giphy public beta key (limited, get your own)
 
 function renderGifResults(results, grid){
   grid.innerHTML = "";
@@ -2977,9 +3013,90 @@ msgInputEl.addEventListener("drop", function(e){
 
 
 // ── Image / GIF file / Audio send ───────────────────────────────────────────
-document.getElementById("btn-img").addEventListener("click", function(){
+// ── File button → popup menu ──────────────────────────────────────────────────
+var fileMenu = document.getElementById("file-action-menu");
+
+document.getElementById("btn-img").addEventListener("click", function(e){
+  e.stopPropagation();
+  var isOpen = fileMenu.style.display === "block";
+  fileMenu.style.display = isOpen ? "none" : "block";
+});
+// Hover effects
+["file-action-send","file-action-bg","file-action-clearbg"].forEach(function(id){
+  var el = document.getElementById(id);
+  el.addEventListener("mouseenter", function(){ this.style.background="var(--bg-hover)"; });
+  el.addEventListener("mouseleave", function(){ this.style.background=""; });
+});
+// Send image/audio option
+document.getElementById("file-action-send").addEventListener("click", function(){
+  fileMenu.style.display = "none";
   document.getElementById("img-file-input").click();
 });
+// Set background option
+document.getElementById("file-action-bg").addEventListener("click", function(){
+  fileMenu.style.display = "none";
+  if(!currentRoom){ alert("Open a chat first."); return; }
+  document.getElementById("bg-file-input").click();
+});
+// Remove background option
+document.getElementById("file-action-clearbg").addEventListener("click", function(){
+  fileMenu.style.display = "none";
+  if(!currentRoom){ alert("Open a chat first."); return; }
+  db.ref("chatbg/"+currentRoom).remove();
+});
+// Close menu on outside click
+document.addEventListener("click", function(e){
+  if(!fileMenu.contains(e.target) && e.target!==document.getElementById("btn-img"))
+    fileMenu.style.display="none";
+});
+
+// ── Background image upload & sync ────────────────────────────────────────────
+document.getElementById("bg-file-input").addEventListener("change", function(){
+  var file = this.files[0];
+  if(!file || !currentRoom) return;
+  var ext = file.name.split(".").pop().toLowerCase() || "jpg";
+  var path = "chatbg/"+currentRoom+"/bg."+ext;
+  // Show uploading feedback
+  var bar = document.getElementById("music-mini-bar");
+  var oldDisplay = bar.style.display;
+  // Use a simple toast instead
+  var toast = document.createElement("div");
+  toast.style.cssText="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.5);";
+  toast.textContent="⬆️ Uploading background…";
+  document.body.appendChild(toast);
+
+  storage.ref(path).put(file, {contentType: file.type||"image/jpeg"})
+    .then(function(snap){ return snap.ref.getDownloadURL(); })
+    .then(function(url){
+      db.ref("chatbg/"+currentRoom).set({ url:url, by:me.username, ts:Date.now() });
+      toast.textContent = "✅ Background set!";
+      setTimeout(function(){ toast.remove(); }, 2000);
+    })
+    .catch(function(e){
+      toast.textContent = "❌ Failed: "+e.message;
+      setTimeout(function(){ toast.remove(); }, 3000);
+    });
+  this.value="";
+});
+
+// ── Listen for background changes (real-time both sides) ──────────────────────
+var bgRef = null, bgCb = null;
+
+function listenChatBg(roomId){
+  if(bgRef && bgCb){ bgRef.off("value", bgCb); bgRef=null; }
+  var chatArea = document.getElementById("chat-view-active");
+  bgRef = db.ref("chatbg/"+roomId);
+  bgCb  = bgRef.on("value", function(snap){
+    var data = snap.val();
+    if(data && data.url){
+      chatArea.style.setProperty("--chat-bg-url", "url('"+data.url+"')");
+      chatArea.classList.add("has-bg");
+    } else {
+      chatArea.style.removeProperty("--chat-bg-url");
+      chatArea.classList.remove("has-bg");
+    }
+  });
+}
 
 document.getElementById("img-file-input").addEventListener("change", function(){
   var file = this.files[0];
