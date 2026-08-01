@@ -451,14 +451,21 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
 /* ── Typing indicator ── */
 #typing-indicator{
-  padding:4px 16px 6px;
+  padding:0 16px;
   font-size:12.5px;
   color:var(--text-secondary);
-  min-height:22px;
+  min-height:0;
   display:flex;
   align-items:center;
   gap:6px;
   flex-shrink:0;
+  overflow:hidden;
+  transition:padding .15s,max-height .15s;
+  max-height:0;
+}
+#typing-indicator:not(:empty){
+  padding:4px 16px 6px;
+  max-height:30px;
 }
 .typing-dots{display:flex;align-items:center;gap:3px;}
 .typing-dots span{
@@ -4900,8 +4907,8 @@ window.addEventListener("load", function(){
 });
 
 // ── Shared Music Player (iframe src swap — no API required) ──────────────────
-var YOUTUBE_API_KEY = "AIzaSyD4TABcrIP8Ef5R7B4vwBsVHEEKNbCwq7E"; // ← paste your key here
-
+var YOUTUBE_API_KEY = "AIzaSyD4TABcrIP8Ef5R7B4vwBsVHEEKNbCwq7E";
+  
 var mediaPicker    = document.getElementById("media-picker");
 var musicPanel     = document.getElementById("music-panel");
 var musicMiniBar   = document.getElementById("music-mini-bar");
@@ -4937,7 +4944,7 @@ function getOrCreateIframe(){
 function loadVideo(videoId, autoplay){
   var iframe = getOrCreateIframe();
   if(!iframe) return;
-  iframe.src = "https://www.youtube.com/embed/"+videoId
+  iframe.src = "https://www.GIPHY.com/embed/"+videoId
     +"?autoplay="+(autoplay?1:0)
     +"&enablejsapi=0"
     +"&rel=0"
