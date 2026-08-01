@@ -451,21 +451,20 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
 /* ── Typing indicator ── */
 #typing-indicator{
-  padding:0 16px;
-  font-size:12.5px;
+  font-size:12px;
   color:var(--text-secondary);
-  min-height:0;
   display:flex;
   align-items:center;
   gap:6px;
   flex-shrink:0;
+  padding:0 16px;
+  height:0;
   overflow:hidden;
-  transition:padding .15s,max-height .15s;
-  max-height:0;
+  transition:height .2s ease;
 }
 #typing-indicator:not(:empty){
-  padding:4px 16px 6px;
-  max-height:30px;
+  height:22px;
+  padding:2px 16px;
 }
 .typing-dots{display:flex;align-items:center;gap:3px;}
 .typing-dots span{
@@ -2715,8 +2714,15 @@ function watchTyping(otherUsername){
   typingRef    = db.ref("typing/"+currentRoom+"/"+otherUsername);
   typingWatcher = typingRef.on("value", function(snap){
     var ti = document.getElementById("typing-indicator");
+    var ml = document.getElementById("messages-list");
     if(snap.val()){
       ti.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div><span>' + escHtml(otherUsername) + ' is typing…</span>';
+      // Only scroll if already near bottom — don't interrupt back-reading
+      var distFromBottom = ml.scrollHeight - ml.scrollTop - ml.clientHeight;
+      if(distFromBottom < 50){
+        setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 50);
+        setTimeout(function(){ ml.scrollTop = ml.scrollHeight; }, 220);
+      }
     } else {
       ti.innerHTML = "";
     }
@@ -4907,8 +4913,8 @@ window.addEventListener("load", function(){
 });
 
 // ── Shared Music Player (iframe src swap — no API required) ──────────────────
-var YOUTUBE_API_KEY = "AIzaSyD4TABcrIP8Ef5R7B4vwBsVHEEKNbCwq7E";
-  
+var YOUTUBE_API_KEY = "AIzaSyD4TABcrIP8Ef5R7B4vwBsVHEEKNbCwq7E"; // ← paste your key here
+
 var mediaPicker    = document.getElementById("media-picker");
 var musicPanel     = document.getElementById("music-panel");
 var musicMiniBar   = document.getElementById("music-mini-bar");
@@ -4944,7 +4950,7 @@ function getOrCreateIframe(){
 function loadVideo(videoId, autoplay){
   var iframe = getOrCreateIframe();
   if(!iframe) return;
-  iframe.src = "https://www.GIPHY.com/embed/"+videoId
+  iframe.src = "https://www.youtube.com/embed/"+videoId
     +"?autoplay="+(autoplay?1:0)
     +"&enablejsapi=0"
     +"&rel=0"
