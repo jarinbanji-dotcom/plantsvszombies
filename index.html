@@ -1904,22 +1904,24 @@ function openRoom(otherUser, otherName){
       });
   };
 
-  // Real-time: new messages only
-  var newRef = null, newCb = null, newSkipped = false;
+  // Real-time: new messages only — startAfter the last loaded key so ALL
+  // messages sent while away are delivered, not just the most recent one
+  var newRef = null, newCb = null;
   var lastSeenNewKey = null;
   setTimeout(function(){
-    if(currentRoom !== currentRoom) return;
-    newRef = db.ref("messages/"+currentRoom).orderByKey().limitToLast(1);
-    newSkipped = false;
-    newCb = newRef.on("child_added", function(snap){
-      if(!newSkipped){
-        newSkipped = true;
-        lastSeenNewKey = snap.key; // remember the existing last message, don't render it
-        return;
-      }
-      // Guard against limitToLast(1) re-firing for an OLDER message after a delete.
-      // Firebase keys are chronologically sortable strings, so a genuinely new
-      // message will always have a key greater than the last one we've seen.
+    if(!currentRoom) return;
+    // Use the newest key already in the DOM as the starting point
+    var allRows = ml.querySelectorAll(".msg-row[data-key]");
+    lastSeenNewKey = allRows.length ? allRows[allRows.length-1].dataset.key : null;
+
+    var query = lastSeenNewKey
+      ? db.ref("messages/"+currentRoom).orderByKey().startAfter(lastSeenNewKey)
+      : db.ref("messages/"+currentRoom).orderByKey().limitToLast(1);
+
+    newCb = query.on("child_added", function(snap){
+      // Skip if this message is already rendered (initial load overlap)
+      if(ml.querySelector('.msg-row[data-key="'+snap.key+'"]')) return;
+      // Guard: only render keys newer than what we started with
       if(lastSeenNewKey !== null && snap.key <= lastSeenNewKey) return;
       lastSeenNewKey = snap.key;
 
@@ -1965,6 +1967,7 @@ function openRoom(otherUser, otherName){
         if(Object.keys(rd).length) renderReactions(snap.key,rd,row.querySelector(".bubble"));
       });
     });
+    newRef = query;
     msgRef = newRef; msgCb = newCb;
   }, 500);
 }
@@ -2740,7 +2743,7 @@ document.getElementById("msg-input").addEventListener("blur", function(){
 // ── GIF panel — Giphy API ─────────────────────────────────────────────────────
 // Get a free key at developers.giphy.com (free tier: 100 requests/hour)
 // Replace the key below with yours. The one here is a public beta key for testing.
-var GIPHY_KEY = "1A9fiy8YoWbW8m1eqFNJMZEGRml48siM" // Giphy public beta key (limited, get your own)
+var GIPHY_KEY = "1A9fiy8YoWbW8m1eqFNJMZEGRml48siM"; // Giphy public beta key (limited, get your own)
 
 function renderGifResults(results, grid){
   grid.innerHTML = "";
@@ -4082,7 +4085,44 @@ function applySeenTicks(seenTs){
 
 // Mark seen when app gets focus (user comes back to tab/app)
 document.addEventListener("visibilitychange", function(){
-  if(!document.hidden && currentRoom) markSeen(currentRoom);
+  if(!document.hidden && currentRoom){
+    markSeen(currentRoom);
+    // Load any messages missed while tab was hidden
+    var ml = document.getElementById("messages-list");
+    var allRows = ml.querySelectorAll(".msg-row[data-key]");
+    var lastKey = allRows.length ? allRows[allRows.length-1].dataset.key : null;
+    if(!lastKey) return;
+    db.ref("messages/"+currentRoom).orderByKey().startAfter(lastKey).once("value", function(snap){
+      if(!snap.exists()) return;
+      snap.forEach(function(d){
+        if(ml.querySelector('.msg-row[data-key="'+d.key+'"]')) return;
+        var msg = d.val();
+        var mine = msg.from === me.username;
+        var mDate = fmtDate(msg.ts);
+        var seps = ml.querySelectorAll(".date-sep");
+        var lastSep = seps.length ? seps[seps.length-1] : null;
+        if(!lastSep || lastSep.textContent !== mDate){
+          var s = document.createElement("div"); s.className="date-sep"; s.textContent=mDate; ml.appendChild(s);
+        }
+        var row = document.createElement("div");
+        row.className = "msg-row "+(mine?"mine":"theirs");
+        row.dataset.key = d.key; row.dataset.ts = msg.ts||0;
+        var isMedia = msg.type==="gif"||msg.type==="image"||msg.type==="audio";
+        var qHtml="";
+        if(msg.replyTo) qHtml='<div class="quoted" data-replykey="'+escHtml(msg.replyTo.key||"")+'"><div class="quoted-name">'+escHtml(msg.replyTo.from||"")+'</div><div class="quoted-text">'+escHtml(msg.replyTo.text||"")+'</div></div>';
+        var bc;
+        if(msg.type==="gif") bc='<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>';
+        else if(msg.type==="image") bc='<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
+        else if(msg.type==="audio") bc='<div class="msg-audio-wrap"><audio controls preload="metadata" src="'+escHtml(msg.url)+'"></audio></div>';
+        else bc='<span class="bubble-text" style="display:block;">'+linkifyText(msg.text||"")+(msg.edited?'<span style="font-size:10px;opacity:.55;"> (edited)</span>':'')+'</span>';
+        row.innerHTML='<div class="bubble" style="'+(isMedia?"padding:4px 4px 20px;":"")+'">'+qHtml+bc+'<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+' </span></div>';
+        var arrow=document.createElement("div"); arrow.className="reply-arrow"; arrow.textContent="↩"; row.appendChild(arrow);
+        ml.appendChild(row);
+      });
+      ml.scrollTop = ml.scrollHeight;
+      applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
+    });
+  }
 });
 window.addEventListener("focus", function(){
   if(currentRoom) markSeen(currentRoom);
