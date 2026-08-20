@@ -1644,6 +1644,13 @@ function openRoom(otherUser, otherName){
 
   var lastDate = null;
 
+  // Safety timeout — Chrome sometimes throttles Firebase callbacks for background tabs.
+  // Force-remove the loading overlay after 5s so the UI is never stuck forever.
+  var loadingTimeout = setTimeout(function(){
+    ml.style.visibility = "visible";
+    document.getElementById("chat-loading-overlay").classList.remove("show");
+  }, 5000);
+
   // Check if user has deleted this chat before loading
   var loadRoom = currentRoom;
   db.ref("deleted/"+currentRoom+"/"+me.username).once("value", function(delSnap){
@@ -1652,6 +1659,7 @@ function openRoom(otherUser, otherName){
   // Load last 50 messages once (reduced from 150 to save bandwidth)
   db.ref("messages/"+loadRoom).orderByKey().limitToLast(50)
     .once("value", function(snap){
+      clearTimeout(loadingTimeout); // Firebase responded — cancel the safety timeout
       var raw = JSON.stringify(snap.val());
       console.log("[BANDWIDTH] Chat-open 50-message read size: "+(raw.length/1024).toFixed(1)+" KB");
       snap.forEach(function(d){
@@ -1904,24 +1912,19 @@ function openRoom(otherUser, otherName){
       });
   };
 
-  // Real-time: new messages only — startAfter the last loaded key so ALL
-  // messages sent while away are delivered, not just the most recent one
-  var newRef = null, newCb = null;
+  // Real-time: new messages only
+  var newRef = null, newCb = null, newSkipped = false;
   var lastSeenNewKey = null;
   setTimeout(function(){
     if(!currentRoom) return;
-    // Use the newest key already in the DOM as the starting point
-    var allRows = ml.querySelectorAll(".msg-row[data-key]");
-    lastSeenNewKey = allRows.length ? allRows[allRows.length-1].dataset.key : null;
-
-    var query = lastSeenNewKey
-      ? db.ref("messages/"+currentRoom).orderByKey().startAfter(lastSeenNewKey)
-      : db.ref("messages/"+currentRoom).orderByKey().limitToLast(1);
-
-    newCb = query.on("child_added", function(snap){
-      // Skip if this message is already rendered (initial load overlap)
-      if(ml.querySelector('.msg-row[data-key="'+snap.key+'"]')) return;
-      // Guard: only render keys newer than what we started with
+    newRef = db.ref("messages/"+currentRoom).orderByKey().limitToLast(1);
+    newSkipped = false;
+    newCb = newRef.on("child_added", function(snap){
+      if(!newSkipped){
+        newSkipped = true;
+        lastSeenNewKey = snap.key;
+        return;
+      }
       if(lastSeenNewKey !== null && snap.key <= lastSeenNewKey) return;
       lastSeenNewKey = snap.key;
 
@@ -1967,7 +1970,7 @@ function openRoom(otherUser, otherName){
         if(Object.keys(rd).length) renderReactions(snap.key,rd,row.querySelector(".bubble"));
       });
     });
-    newRef = query;
+    newRef = newRef;
     msgRef = newRef; msgCb = newCb;
   }, 500);
 }
@@ -4085,18 +4088,27 @@ function applySeenTicks(seenTs){
 
 // Mark seen when app gets focus (user comes back to tab/app)
 document.addEventListener("visibilitychange", function(){
-  if(!document.hidden && currentRoom){
+  if(!document.hidden){
+    try { db.goOnline(); } catch(e){}
+    if(!currentRoom || !me) return;
     markSeen(currentRoom);
-    // Load any messages missed while tab was hidden
+    // Fetch any messages missed while tab was hidden — using the DOM's last key
     var ml = document.getElementById("messages-list");
     var allRows = ml.querySelectorAll(".msg-row[data-key]");
     var lastKey = allRows.length ? allRows[allRows.length-1].dataset.key : null;
     if(!lastKey) return;
     db.ref("messages/"+currentRoom).orderByKey().startAfter(lastKey).once("value", function(snap){
       if(!snap.exists()) return;
-      snap.forEach(function(d){
-        if(ml.querySelector('.msg-row[data-key="'+d.key+'"]')) return;
-        var msg = d.val();
+      // Collect all missed messages first, then render in order
+      var missed = [];
+      snap.forEach(function(d){ missed.push({key:d.key, val:d.val()}); });
+      // Sort by key (Firebase keys are chronological)
+      missed.sort(function(a,b){ return a.key < b.key ? -1 : 1; });
+      // Remove any already-rendered ones (real-time listener may have added some)
+      missed = missed.filter(function(m){ return !ml.querySelector('.msg-row[data-key="'+m.key+'"]'); });
+      if(!missed.length) return;
+      missed.forEach(function(m){
+        var d = m; var msg = m.val;
         var mine = msg.from === me.username;
         var mDate = fmtDate(msg.ts);
         var seps = ml.querySelectorAll(".date-sep");
