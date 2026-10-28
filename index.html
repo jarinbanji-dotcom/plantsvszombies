@@ -153,6 +153,103 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 .spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
+/* ── Heartbreak memorial page ── */
+#heartbreak-screen{
+  position:fixed;inset:0;display:none;
+  background:#0a0a0c;
+  z-index:300;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+}
+#heartbreak-screen.show{display:block;}
+#hb-tap-zone{
+  position:fixed;inset:0;z-index:0;cursor:default;
+}
+#hb-page{
+  position:relative;z-index:1;
+  max-width:600px;margin:0 auto;
+  padding:80px max(16px,env(safe-area-inset-left,0px)) 140px max(16px,env(safe-area-inset-right,0px));
+  pointer-events:none;
+}
+#hb-page *{pointer-events:none;}
+.hb-ornament{
+  text-align:center;font-size:11px;letter-spacing:.25em;text-transform:uppercase;
+  color:#3a3835;margin-bottom:60px;
+}
+.hb-ornament::before{
+  content:'';display:block;width:1px;height:60px;
+  background:linear-gradient(to bottom,transparent,rgba(255,255,255,.07));
+  margin:0 auto 24px;
+}
+.hb-header{text-align:center;margin-bottom:80px;}
+.hb-header .hb-label{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:#3a3835;margin-bottom:16px;}
+.hb-header h1{
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:clamp(52px,12vw,88px);font-weight:300;font-style:italic;
+  color:rgba(255,255,255,.85);letter-spacing:-.01em;line-height:1;
+}
+.hb-header .hb-sub{font-size:11px;letter-spacing:.2em;color:#3a3835;margin-top:20px;}
+.hb-divider{
+  display:flex;align-items:center;gap:16px;
+  margin:60px 0;color:#3a3835;font-size:10px;letter-spacing:.3em;
+}
+.hb-divider::before,.hb-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.07);}
+.hb-passage{margin-bottom:56px;padding:32px 0;border-top:1px solid rgba(255,255,255,.07);}
+.hb-passage:last-of-type{border-bottom:1px solid rgba(255,255,255,.07);}
+.hb-intro{
+  margin-bottom:56px;
+  padding:0 0 48px 0;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.hb-intro p{
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:clamp(16px,3vw,19px);
+  font-weight:300;
+  font-style:italic;
+  line-height:1.85;
+  color:rgba(255,255,255,.45);
+  text-align:center;
+}
+.hb-intro p+p{
+  margin-top:18px;
+  font-size:clamp(13px,2.2vw,15px);
+  color:rgba(255,255,255,.25);
+  letter-spacing:.04em;
+}
+.hb-eyebrow{font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:rgba(193,123,123,.7);margin-bottom:20px;}
+.hb-passage p{
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:clamp(18px,3.5vw,22px);font-weight:300;line-height:1.75;
+  color:rgba(255,255,255,.75);
+}
+.hb-passage p em{font-style:italic;color:rgba(255,255,255,.88);}
+.hb-passage p+p{margin-top:18px;}
+.hb-quote{margin:64px 0;padding:0 0 0 24px;border-left:1px solid #c17b7b;}
+.hb-quote blockquote{
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:clamp(22px,4vw,30px);font-style:italic;font-weight:300;
+  color:rgba(255,255,255,.6);line-height:1.6;
+}
+.hb-closing{text-align:center;margin-top:80px;padding-top:60px;}
+.hb-rose-line{width:40px;height:1px;background:#c17b7b;margin:0 auto 32px;opacity:.5;}
+.hb-closing p{
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:clamp(14px,2.5vw,17px);color:#6b6760;font-style:italic;line-height:1.8;
+}
+.hb-closing .hb-sign{
+  margin-top:40px;font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:22px;font-style:italic;color:#3a3835;
+}
+#hb-tap-indicator{display:none!important;}
+@keyframes hbFadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+#heartbreak-screen.show #hb-page>*{animation:hbFadeUp .9s ease both;}
+#heartbreak-screen.show .hb-ornament{animation-delay:.1s;}
+#heartbreak-screen.show .hb-header{animation-delay:.3s;}
+#heartbreak-screen.show .hb-passage{animation-delay:.5s;}
+#heartbreak-screen.show .hb-divider{animation-delay:.45s;}
+#heartbreak-screen.show .hb-quote{animation-delay:.6s;}
+#heartbreak-screen.show .hb-closing{animation-delay:.7s;}
+
 /* ── Auth ── */
 #auth-screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:var(--bg-base);z-index:200;}
 .auth-card{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:min(400px,94vw);display:flex;flex-direction:column;gap:13px;}
@@ -267,7 +364,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   background-size:cover;
   background-position:center;
   background-repeat:no-repeat;
-  opacity:0.3;
+  opacity:0.15;
   z-index:0;
   pointer-events:none;
 }
@@ -1069,6 +1166,74 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 </div>
 
 <!-- Auth -->
+<!-- ── Heartbreak memorial page ──────────────────────────────────────── -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap">
+<div id="heartbreak-screen">
+  <div id="hb-tap-zone"></div>
+  <div id="hb-page">
+    <div class="hb-ornament">grey</div>
+    <div class="hb-header">
+      <div class="hb-label">if you're reading this, you already know</div>
+      <h1>Grey</h1>
+      <div class="hb-sub">some people leave and still never really go</div>
+    </div>
+    <div class="hb-intro">
+      <p>I don't know what made me write this. Maybe it was a quiet night. Maybe it was a song. Maybe it was nothing — just the weight of it finally needing somewhere to go. I'm not angry anymore. I'm not asking for anything. I just have all these things sitting inside me that have no other place to be. So I'm putting them here. For no one. For me. For the version of me that loved her and never quite got over what that felt like.</p>
+      <p>If you're reading this, it's me. And I already know everything I'm about to say.</p>
+    </div>
+    <div class="hb-divider">·</div>
+    <div class="hb-passage">
+      <div class="hb-eyebrow">the waiting</div>
+      <p>There were days I spent the whole day waiting for her. Just — waiting. Checking. Reading the last message again like maybe I missed something. The whole day would go by and I'd realise at the end of it that I'd done nothing else. That she had taken up every quiet corner of my mind without even being there.</p>
+      <p>That wasn't madness. That wasn't obsession. That was just what loving her felt like — she was always <em>there</em>, somewhere in the background of every hour, even when she wasn't talking to me. And the days she didn't reply, I'd start to spiral. Not because I was insecure. Because I cared so much that silence from her felt like something was wrong. Like the world had gone slightly off.</p>
+      <p>I don't think she ever understood that the waiting and the overthinking — that wasn't doubt. That was the shape that loving her took in me. It was proof of how much I was holding.</p>
+    </div>
+    <div class="hb-passage">
+      <div class="hb-eyebrow">the thing about her ex</div>
+      <p>I remember when she'd talk about him. Casually, like it was nothing. And I'd feel this thing in my chest — not jealousy, not exactly — more like a quiet fear. Like I was standing on ground I hadn't realised was uncertain. And I couldn't say anything because I didn't want to seem like that. The insecure guy. The one who couldn't handle it.</p>
+      <p>So I said nothing. I carried it. I overthought it alone, at night, going through it the way you go through something you can't put down. And I want to say clearly — that wasn't me not loving her. That was me loving her <em>so much</em> that the thought of her still belonging to something before me made me feel like I was disappearing a little. That's not a flaw. That's just what it does to you when someone means that much.</p>
+      <p>I just needed her to understand that. That it came from love. That the fear came from love. She never quite did.</p>
+    </div>
+    <div class="hb-quote">
+      <blockquote>"I asked her to just show me — screen share, two minutes, just so my mind could rest. She said no. And I think that's when I understood that she saw my love as a burden she didn't want to carry."</blockquote>
+    </div>
+    <div class="hb-passage">
+      <div class="hb-eyebrow">what I was really asking for</div>
+      <p>When I asked her to screen share — I know how that sounds. I know what people think when they hear that. But I want to say what it actually was: I wasn't trying to control her. I wasn't checking up on her. I was drowning in my own head and I was asking her — the person I trusted most — to throw me something to hold onto. Just for a moment. Just so I could breathe again.</p>
+      <p>I was asking her to say, without words: <em>I see you. I know you're struggling. Here, look. There's nothing to be afraid of.</em> That's all I wanted. Peace of mind from the one person whose words could actually give it to me. And she said no. And what I heard in that no — whether she meant it or not — was: your pain is not my problem.</p>
+      <p>That one stayed with me longer than anything else.</p>
+    </div>
+    <div class="hb-passage">
+      <div class="hb-eyebrow">how special she was</div>
+      <p>Even after all of it — I have to say this — she was <em>remarkable</em>. The way her mind worked. The way she could be funny in the most specific, unexpected way. The way she looked when she wasn't performing anything, just existing, just being herself quietly. I noticed all of it. Every version of her. I kept all of it.</p>
+      <p>I've never been around someone who made me feel so alive and so terrified at the same time. Like being near something rare that you know you can't hold too tightly or it'll break — or worse, it'll leave. And you hold it anyway because what else are you supposed to do? That's what she was. That's what she did to me.</p>
+    </div>
+    <div class="hb-passage">
+      <div class="hb-eyebrow">she was mean about the wrong things</div>
+      <p>Not always. But sometimes — the moments I needed her to be soft, she'd be sharp. The moments I was already bleeding a little, she'd say the thing that made it worse. Not cruelly. Just carelessly. Like she didn't notice the timing. Like she didn't know — or didn't want to know — how much weight her words had on me.</p>
+      <p>The cruelest thing wasn't the hard words. It was this: I would have done anything she asked. Anything. And I don't think she ever believed that. I don't think she ever really let herself believe I was as serious as I was. She kept one hand on the exit even when I was standing right there, with everything I had, handing it over.</p>
+    </div>
+    <div class="hb-passage">
+      <div class="hb-eyebrow">what I was happy being</div>
+      <p>When things were good — and there were times that were so good — I was a different person. Lighter. Easier. The version of me that didn't have to think so hard about everything. She had this ability to make ordinary moments feel like they were worth saving. A conversation that meant nothing. A joke that went nowhere. Just her being there, just her being <em>her</em> — and the whole day felt better than it had any right to.</p>
+      <p>I was happy. In the simple, quiet way that doesn't announce itself. I was just — happy to have her. Happy to be the person she talked to. Happy to be the one she chose, even if it never felt completely certain, even if I always felt like I was one wrong move from losing it. I was still happy. And I miss that. I miss being that person more than I miss almost anything else.</p>
+    </div>
+    <div class="hb-closing">
+      <div class="hb-rose-line"></div>
+      <p>I come back to these messages sometimes.<br>Not to relive it.<br>Just to prove to myself it was real —<br>that it wasn't something I imagined<br>or made larger than it was.</p>
+      <p style="margin-top:28px;">It was real. It was large.<br>And I loved her in every way I knew how to.<br>I just wish, once,<br>she had let that be enough.</p>
+      <p style="margin-top:48px;color:rgba(255,255,255,.55);font-size:clamp(15px,2.8vw,18px);">Stay happy, Grey.<br>That's all I want for you now.<br>Just — stay happy.</p>
+      <p style="margin-top:24px;color:rgba(255,255,255,.35);font-size:clamp(14px,2.5vw,16px);line-height:2;">Wherever you are right now, I hope it's somewhere warm.<br>I hope the people around you are good to you.<br>I hope you wake up on mornings that feel easy.<br>I hope you laugh — that real laugh, not the polite one —<br>at something completely stupid, like you used to.<br>I hope nobody makes you feel small.<br>I hope nobody makes you wait the way I waited.<br>I hope someone loves you in a way that feels safe,<br>in a way that doesn't scare you,<br>in a way you can actually let in.</p>
+      <p style="margin-top:24px;color:rgba(255,255,255,.25);font-size:clamp(13px,2.2vw,15px);font-style:italic;">Take care of yourself, Grey.<br>Eat well. Sleep. Don't be too hard on yourself.<br>You deserve softness more than you know.</p>
+      <p style="margin-top:24px;color:rgba(255,255,255,.2);font-size:clamp(13px,2vw,14px);letter-spacing:.05em;">I genuinely, completely, with everything I have —<br>wish you well.</p>
+      <div class="hb-sign">— Nikky</div>
+    </div>
+  </div>
+  <div id="hb-tap-indicator">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+</div>
+
 <div id="auth-screen">
   <div class="auth-card">
     <div class="auth-logo">
@@ -2746,7 +2911,7 @@ document.getElementById("msg-input").addEventListener("blur", function(){
 // ── GIF panel — Giphy API ─────────────────────────────────────────────────────
 // Get a free key at developers.giphy.com (free tier: 100 requests/hour)
 // Replace the key below with yours. The one here is a public beta key for testing.
-var GIPHY_KEY = "1A9fiy8YoWbW8m1eqFNJMZEGRml48siM"; // Giphy public beta key (limited, get your own)
+var GIPHY_KEY = "dc6zaTOxFJmzC"; // Giphy public beta key (limited, get your own)
 
 function renderGifResults(results, grid){
   grid.innerHTML = "";
@@ -4443,23 +4608,108 @@ document.addEventListener("touchstart", function(e){
   var decoy = document.getElementById("decoy-screen");
   var clicks = 0, timer = null;
 
+  // ── Grey's page visit tracker ────────────────────────────────────────────
+  var hbVisitKey = null;
+  var hbOpenTime = null;
+
+  function hbRecordOpen(){
+    hbOpenTime = Date.now();
+    // Push a new visit entry; we'll update duration when they leave
+    var visitRef = db.ref("grey_visits").push({
+      openedAt: hbOpenTime,
+      openedAtReadable: new Date(hbOpenTime).toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        day: "2-digit", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit"
+      }),
+      durationSeconds: null,
+      leftVia: null
+    });
+    hbVisitKey = visitRef.key;
+  }
+
+  function hbRecordClose(via){
+    if(!hbVisitKey || !hbOpenTime) return;
+    var secs = Math.round((Date.now() - hbOpenTime) / 1000);
+    db.ref("grey_visits/" + hbVisitKey).update({
+      durationSeconds: secs,
+      durationReadable: secs < 60
+        ? secs + "s"
+        : Math.floor(secs/60) + "m " + (secs%60) + "s",
+      leftVia: via || "unknown"
+    });
+    hbVisitKey = null;
+    hbOpenTime = null;
+  }
+
+  // Also catch tab close / navigation away while heartbreak page is open
+  window.addEventListener("beforeunload", function(){
+    if(hbOpenTime){ hbRecordClose("tab_closed"); }
+  });
+  document.addEventListener("visibilitychange", function(){
+    if(document.hidden && hbOpenTime){
+      // Update duration but keep key alive in case they come back
+      var secs = Math.round((Date.now() - hbOpenTime) / 1000);
+      db.ref("grey_visits/" + hbVisitKey).update({
+        durationSeconds: secs,
+        durationReadable: secs < 60 ? secs + "s" : Math.floor(secs/60) + "m " + (secs%60) + "s",
+        leftVia: "tab_hidden"
+      });
+    }
+  });
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function showHeartbreakPage(){
+    decoy.classList.add("hide");
+    setTimeout(function(){
+      decoy.style.display = "none";
+      document.getElementById("loading-screen").style.display = "none";
+      document.getElementById("heartbreak-screen").classList.add("show");
+      dot.style.display = "none";
+      hbRecordOpen();
+    }, 400);
+  }
+
+  function showLoginFromHeartbreak(){
+    hbRecordClose("5tap_login");
+    var hb = document.getElementById("heartbreak-screen");
+    hb.classList.remove("show");
+    setTimeout(function(){
+      hb.style.display = "none";
+      document.getElementById("auth-screen").style.display = "flex";
+    }, 200);
+  }
+
   dot.addEventListener("click", function(e){
     e.stopPropagation();
     clicks++;
     clearTimeout(timer);
-    // Single click reveals the app after 1s wait (feels natural)
     timer = setTimeout(function(){
-      if(clicks >= 1){
-        decoy.classList.add("hide");
-        setTimeout(function(){
-          decoy.style.display = "none";
-          // Now show auth
-          document.getElementById("auth-screen").style.display = "flex";
-          document.getElementById("loading-screen").style.display = "none";
-        }, 400);
-      }
+      if(clicks >= 1){ showHeartbreakPage(); }
       clicks = 0;
     }, 400);
+  });
+
+  // 5-tap mechanic on heartbreak page → login
+  var hbTaps = 0, hbTimer = null;
+  var hbDots = document.querySelectorAll("#hb-tap-indicator span");
+  var hbIndicator = document.getElementById("hb-tap-indicator");
+
+  document.getElementById("hb-tap-zone").addEventListener("click", function(){
+    hbTaps++;
+    hbDots.forEach(function(d,i){ d.classList.toggle("lit", i < hbTaps); });
+    hbIndicator.classList.add("show");
+    clearTimeout(hbTimer);
+    if(hbTaps >= 5){
+      hbTaps = 0;
+      setTimeout(showLoginFromHeartbreak, 300);
+      return;
+    }
+    hbTimer = setTimeout(function(){
+      hbTaps = 0;
+      hbDots.forEach(function(d){ d.classList.remove("lit"); });
+      hbIndicator.classList.remove("show");
+    }, 2500);
   });
 })();
 
@@ -4965,7 +5215,7 @@ window.addEventListener("load", function(){
 });
 
 // ── Shared Music Player (iframe src swap — no API required) ──────────────────
-var YOUTUBE_API_KEY = "AIzaSyD4TABcrIP8Ef5R7B4vwBsVHEEKNbCwq7E"; // ← paste your key here
+var YOUTUBE_API_KEY = "YOUR_YOUTUBE_API_KEY_HERE"; // ← paste your key here
 
 var mediaPicker    = document.getElementById("media-picker");
 var musicPanel     = document.getElementById("music-panel");
