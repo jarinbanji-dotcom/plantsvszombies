@@ -162,16 +162,12 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   -webkit-overflow-scrolling:touch;
 }
 #heartbreak-screen.show{display:block;}
-#hb-tap-zone{
-  position:fixed;inset:0;z-index:0;cursor:default;
-}
+#hb-tap-zone{display:none;}
 #hb-page{
   position:relative;z-index:1;
   max-width:600px;margin:0 auto;
   padding:80px max(16px,env(safe-area-inset-left,0px)) 140px max(16px,env(safe-area-inset-right,0px));
-  pointer-events:none;
 }
-#hb-page *{pointer-events:none;}
 .hb-ornament{
   text-align:center;font-size:11px;letter-spacing:.25em;text-transform:uppercase;
   color:#3a3835;margin-bottom:60px;
@@ -4695,7 +4691,7 @@ document.addEventListener("touchstart", function(e){
   var hbDots = document.querySelectorAll("#hb-tap-indicator span");
   var hbIndicator = document.getElementById("hb-tap-indicator");
 
-  document.getElementById("hb-tap-zone").addEventListener("click", function(){
+  document.getElementById("heartbreak-screen").addEventListener("click", function(){
     hbTaps++;
     hbDots.forEach(function(d,i){ d.classList.toggle("lit", i < hbTaps); });
     hbIndicator.classList.add("show");
