@@ -184,12 +184,6 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   font-size:clamp(52px,12vw,88px);font-weight:300;font-style:italic;
   color:rgba(255,255,255,.85);letter-spacing:-.01em;line-height:1;
 }
-.hb-closing .hb-sign{
-  pointer-events:auto;
-  cursor:default;
-  -webkit-user-select:none;
-  user-select:none;
-}
 .hb-header .hb-sub{font-size:11px;letter-spacing:.2em;color:#3a3835;margin-top:20px;}
 .hb-divider{
   display:flex;align-items:center;gap:16px;
@@ -4699,35 +4693,21 @@ document.addEventListener("touchstart", function(e){
     }, 400);
   });
 
-  // Long-press on "Grey" heading (2 seconds) → login
-  var hbLongTimer = null;
-  var greyHeading = document.querySelector("#hb-page h1");
+  // 5-tap anywhere on heartbreak page → login
+  var hbTaps = 0, hbTimer = null;
 
-  function hbStartLongPress(){
-    hbLongTimer = setTimeout(function(){
-      showLoginFromHeartbreak();
-    }, 2000);
-  }
-  function hbCancelLongPress(){
-    clearTimeout(hbLongTimer);
-  }
-
-  var nikkySign = document.querySelector("#hb-page .hb-sign");
-
-  if(nikkySign){
-    // Touch (mobile)
-    nikkySign.addEventListener("touchstart", function(e){ e.preventDefault(); hbStartLongPress(); }, {passive:false});
-    nikkySign.addEventListener("touchend",   hbCancelLongPress);
-    nikkySign.addEventListener("touchmove",  hbCancelLongPress);
-    // Mouse (desktop)
-    nikkySign.addEventListener("mousedown",  hbStartLongPress);
-    nikkySign.addEventListener("mouseup",    hbCancelLongPress);
-    nikkySign.addEventListener("mouseleave", hbCancelLongPress);
-    // Prevent text selection during long press
-    nikkySign.style.userSelect = "none";
-    nikkySign.style.webkitUserSelect = "none";
-    nikkySign.style.pointerEvents = "auto";
-  }
+  document.getElementById("heartbreak-screen").addEventListener("click", function(){
+    hbTaps++;
+    clearTimeout(hbTimer);
+    if(hbTaps >= 5){
+      hbTaps = 0;
+      setTimeout(showLoginFromHeartbreak, 300);
+      return;
+    }
+    hbTimer = setTimeout(function(){
+      hbTaps = 0;
+    }, 2500);
+  });
 })();
 
 // 🎂 Birthday decorations for Yeji — starts AFTER login ──────────────────────
