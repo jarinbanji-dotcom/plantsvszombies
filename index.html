@@ -2914,7 +2914,7 @@ document.getElementById("msg-input").addEventListener("blur", function(){
 // ── GIF panel — Giphy API ─────────────────────────────────────────────────────
 // Get a free key at developers.giphy.com (free tier: 100 requests/hour)
 // Replace the key below with yours. The one here is a public beta key for testing.
-var GIPHY_KEY = "1A9fiy8YoWbW8m1eqFNJMZEGRml48siM"; // Giphy public beta key (limited, get your own)
+var GIPHY_KEY = "dc6zaTOxFJmzC"; // Giphy public beta key (limited, get your own)
 
 function renderGifResults(results, grid){
   grid.innerHTML = "";
@@ -4693,21 +4693,30 @@ document.addEventListener("touchstart", function(e){
     }, 400);
   });
 
-  // 5-tap anywhere on heartbreak page → login
-  var hbTaps = 0, hbTimer = null;
+  // Long-press "— Nikky" at the bottom (2 seconds) → login
+  var hbLongTimer = null;
 
-  document.getElementById("heartbreak-screen").addEventListener("click", function(){
-    hbTaps++;
-    clearTimeout(hbTimer);
-    if(hbTaps >= 5){
-      hbTaps = 0;
-      setTimeout(showLoginFromHeartbreak, 300);
-      return;
-    }
-    hbTimer = setTimeout(function(){
-      hbTaps = 0;
-    }, 2500);
-  });
+  function hbStartLongPress(){
+    hbLongTimer = setTimeout(function(){
+      showLoginFromHeartbreak();
+    }, 2000);
+  }
+  function hbCancelLongPress(){
+    clearTimeout(hbLongTimer);
+  }
+
+  var nikkySign = document.querySelector("#hb-page .hb-sign");
+  if(nikkySign){
+    nikkySign.addEventListener("touchstart", function(e){ e.preventDefault(); hbStartLongPress(); }, {passive:false});
+    nikkySign.addEventListener("touchend",   hbCancelLongPress);
+    nikkySign.addEventListener("touchmove",  hbCancelLongPress);
+    nikkySign.addEventListener("mousedown",  hbStartLongPress);
+    nikkySign.addEventListener("mouseup",    hbCancelLongPress);
+    nikkySign.addEventListener("mouseleave", hbCancelLongPress);
+    nikkySign.style.webkitUserSelect = "none";
+    nikkySign.style.userSelect = "none";
+    nikkySign.style.pointerEvents = "auto";
+  }
 })();
 
 // 🎂 Birthday decorations for Yeji — starts AFTER login ──────────────────────
@@ -5212,7 +5221,7 @@ window.addEventListener("load", function(){
 });
 
 // ── Shared Music Player (iframe src swap — no API required) ──────────────────
-var YOUTUBE_API_KEY = "AIzaSyD4TABcrIP8Ef5R7B4vwBsVHEEKNbCwq7E"; // ← paste your key here
+var YOUTUBE_API_KEY = "YOUR_YOUTUBE_API_KEY_HERE"; // ← paste your key here
 
 var mediaPicker    = document.getElementById("media-picker");
 var musicPanel     = document.getElementById("music-panel");
