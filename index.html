@@ -1157,8 +1157,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
       
       <input id="chat-search-input" placeholder="Search messages…" style="flex:1 1 140px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13.5px;outline:none;font-family:var(--font);"/>
 
-      <input type="text" placeholder="📅 Date" onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" id="chat-date-input" style="flex:0 1 110px;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13px;outline:none;font-family:var(--font); cursor:pointer;"/>
-      
+<input type="text" placeholder="📅 Date" onfocus="this.type='date'; try{this.showPicker();}catch(e){}" onclick="try{this.showPicker();}catch(e){}" onblur="if(!this.value) this.type='text'" id="chat-date-input" style="flex:0 1 110px;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13px;outline:none;font-family:var(--font); cursor:pointer;"/>      
       <!-- Grouped buttons so they wrap nicely on mobile -->
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto;">
         <span id="chat-search-count" style="font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
