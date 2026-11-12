@@ -2295,91 +2295,99 @@ function jumpToSearchResult(){
   var ml = document.getElementById("messages-list");
   ml.style.visibility = "hidden";
 
-  // Load 150 messages ending at this message's key
- 
-  // Fetch 50 messages before AND 50 messages after the search result
-  db.ref("messages/"+currentRoom).orderByKey().endAt(item.key).limitToLast(50).once("value", function(olderSnap){
-    db.ref("messages/"+currentRoom).orderByKey().startAt(item.key).limitToFirst(50).once("value", function(newerSnap){
-      
-      // Abort if search was closed or user switched rooms
-      if(document.getElementById("chat-search-bar").style.display === "none" || searchRoom !== currentRoom) {
-          document.getElementById("chat-loading-overlay").classList.remove("show");
-          ml.style.visibility = "visible";
-          return;
-      }
+  var searchRoom = currentRoom; // Capture current room
 
-      ml.innerHTML = "";
-      var lastDate = null;
-      var deletedAt = window._deletedAt || 0;
+  // Fetch older and newer simultaneously to prevent hangs
+  var olderDone = false, newerDone = false;
+  var olderData = [], newerData = [];
 
-      // Combine the messages (skipping the duplicate search result in the middle)
-      var msgs = [];
-      olderSnap.forEach(function(d){ msgs.push(d); });
-      var isFirst = true;
-      newerSnap.forEach(function(d){
-          if(isFirst) { isFirst = false; return; }
-          msgs.push(d);
-      });
-
-      // Render all combined messages
-      msgs.forEach(function(d){
-        var msg = d.val();
-        if(msg.ts && msg.ts <= deletedAt) return;
-        var mDate = fmtDate(msg.ts);
-        if(mDate !== lastDate){
-          var sep = document.createElement("div");
-          sep.className="date-sep"; sep.textContent=mDate;
-          ml.appendChild(sep); lastDate=mDate;
-        }
-        var mine = msg.from === me.username;
-        var row  = document.createElement("div");
-        row.className   = "msg-row "+(mine?"mine":"theirs");
-        row.dataset.key = d.key;
-        row.dataset.ts  = msg.ts||0;
-        var qHtml="";
-        if(msg.replyTo) qHtml='<div class="quoted" data-replykey="'+escHtml(msg.replyTo.key||"")+'"><div class="quoted-name">'+escHtml(msg.replyTo.from||"")+'</div><div class="quoted-text">'+escHtml(msg.replyTo.text||"")+'</div></div>';
-        var bc;
-        if(msg.type==="gif")        bc='<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>';
-        else if(msg.type==="image") bc='<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
-        else if(msg.type==="audio") bc='<div class="msg-audio-wrap"><audio controls preload="metadata" src="'+escHtml(msg.url)+'"></audio></div>';
-        else bc='<span class="bubble-text" style="display:block;">'+linkifyText(msg.text||"")+'</span>';
-        row.innerHTML='<div class="bubble">'+qHtml+bc+'<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+' </span></div>';
-        var arrow=document.createElement("div");
-        arrow.className="reply-arrow"; arrow.textContent="↩";
-        row.appendChild(arrow);
-        ml.appendChild(row);
-      });
-
-      // Update oldest/newest keys for bidirectional scrolling
-      var firstRow = ml.querySelector(".msg-row[data-key]");
-      var allRows  = ml.querySelectorAll(".msg-row[data-key]");
-      var lastRowEl = allRows.length ? allRows[allRows.length-1] : null;
-      window._oldestMsgKey = firstRow ? firstRow.dataset.key : null;
-      window._newestMsgKey = lastRowEl ? lastRowEl.dataset.key : null;
-      
-      // If the newer chunk had less than 50 messages, we are at the very bottom
-      window._newestLoaded = (newerSnap.numChildren() < 50); 
-      window._loadingNewer = false;
-      window._loadingMore  = false;
-      window._loadMoreRoom = currentRoom;
-
-      // Scroll to the target message
-      setTimeout(function(){
-        var target = document.querySelector('.msg-row[data-key="'+item.key+'"]');
-        if(target){
-          clearSearchHighlights();
-          var bt = target.querySelector(".bubble-text");
-          if(bt) bt.classList.add("msg-highlight-current");
-          target.scrollIntoView({behavior:"instant", block:"center"});
-        }
-        ml.style.visibility = "visible";
-        document.getElementById("chat-loading-overlay").classList.remove("show");
-        applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
-      }, 100);
-    });
+  db.ref("messages/"+searchRoom).orderByKey().endAt(item.key).limitToLast(50).once("value", function(olderSnap){
+     olderSnap.forEach(function(d){ olderData.push(d); });
+     olderDone = true;
+     checkDone();
   });
 
-  
+  db.ref("messages/"+searchRoom).orderByKey().startAt(item.key).limitToFirst(50).once("value", function(newerSnap){
+     newerSnap.forEach(function(d){ newerData.push(d); });
+     newerDone = true;
+     checkDone();
+  });
+
+  function checkDone() {
+     if(!olderDone || !newerDone) return;
+
+     // Abort if search was closed or user switched rooms
+     if(document.getElementById("chat-search-bar").style.display === "none" || searchRoom !== currentRoom) {
+         document.getElementById("chat-loading-overlay").classList.remove("show");
+         ml.style.visibility = "visible";
+         return;
+     }
+
+     ml.innerHTML = "";
+     var lastDate = null;
+     var deletedAt = window._deletedAt || 0;
+
+     // Combine the messages (skipping the duplicate search result in the middle)
+     var msgs = olderData.slice();
+     for (var i = 1; i < newerData.length; i++) {
+         msgs.push(newerData[i]);
+     }
+
+     // Render all combined messages
+     msgs.forEach(function(d){
+       var msg = d.val();
+       if(msg.ts && msg.ts <= deletedAt) return;
+       var mDate = fmtDate(msg.ts);
+       if(mDate !== lastDate){
+         var sep = document.createElement("div");
+         sep.className="date-sep"; sep.textContent=mDate;
+         ml.appendChild(sep); lastDate=mDate;
+       }
+       var mine = msg.from === me.username;
+       var row  = document.createElement("div");
+       row.className   = "msg-row "+(mine?"mine":"theirs");
+       row.dataset.key = d.key;
+       row.dataset.ts  = msg.ts||0;
+       var qHtml="";
+       if(msg.replyTo) qHtml='<div class="quoted" data-replykey="'+escHtml(msg.replyTo.key||"")+'"><div class="quoted-name">'+escHtml(msg.replyTo.from||"")+'</div><div class="quoted-text">'+escHtml(msg.replyTo.text||"")+'</div></div>';
+       var bc;
+       if(msg.type==="gif")        bc='<img class="msg-gif" src="'+escHtml(msg.url)+'" alt="GIF" loading="lazy"/>';
+       else if(msg.type==="image") bc='<img class="msg-img" src="'+escHtml(msg.url)+'" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
+       else if(msg.type==="audio") bc='<div class="msg-audio-wrap"><audio controls preload="metadata" src="'+escHtml(msg.url)+'"></audio></div>';
+       else bc='<span class="bubble-text" style="display:block;">'+linkifyText(msg.text||"")+'</span>';
+       row.innerHTML='<div class="bubble">'+qHtml+bc+'<span class="bubble-meta">'+fmtTime(msg.ts)+(mine?' <span class="tick" style="color:rgba(255,255,255,.45)">✓</span>':'')+' </span></div>';
+       var arrow=document.createElement("div");
+       arrow.className="reply-arrow"; arrow.textContent="↩";
+       row.appendChild(arrow);
+       ml.appendChild(row);
+     });
+
+     // Update oldest/newest keys for bidirectional scrolling
+     var firstRow = ml.querySelector(".msg-row[data-key]");
+     var allRows  = ml.querySelectorAll(".msg-row[data-key]");
+     var lastRowEl = allRows.length ? allRows[allRows.length-1] : null;
+     window._oldestMsgKey = firstRow ? firstRow.dataset.key : null;
+     window._newestMsgKey = lastRowEl ? lastRowEl.dataset.key : null;
+
+     window._newestLoaded = (newerData.length < 50);
+     window._loadingNewer = false;
+     window._loadingMore  = false;
+     window._loadMoreRoom = currentRoom;
+
+     // Scroll to the target message
+     setTimeout(function(){
+       var target = document.querySelector('.msg-row[data-key="'+item.key+'"]');
+       if(target){
+         clearSearchHighlights();
+         var bt = target.querySelector(".bubble-text");
+         if(bt) bt.classList.add("msg-highlight-current");
+         target.scrollIntoView({behavior:"instant", block:"center"});
+       }
+       ml.style.visibility = "visible";
+       document.getElementById("chat-loading-overlay").classList.remove("show");
+       applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
+     }, 100);
+  }
 }
 
 document.getElementById("chat-search-input").addEventListener("input", function(){
