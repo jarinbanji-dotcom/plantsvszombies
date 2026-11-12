@@ -1600,7 +1600,6 @@ function openRoom(otherUser, otherName){
   // Show loading overlay, hide messages until loaded
   document.getElementById("chat-loading-overlay").classList.add("show");
   document.getElementById("messages-list").style.visibility = "hidden";
-  $("btn-delete-chat").style.display       = "flex";
   document.getElementById("typing-indicator").innerHTML = "";
   closeSearch();
   document.getElementById("reply-bar").classList.remove("show");
@@ -2094,7 +2093,6 @@ $("btn-signout").addEventListener("click",function(){
   $("messages-list").innerHTML="";
   $("chat-view-placeholder").style.display="flex";
   $("chat-view-active").style.display="none";
-  $("btn-delete-chat").style.display="none";
   $("login-username").value=""; $("login-pass").value="";
   $("btn-auth").disabled=false;
   $("btn-auth").textContent="Sign In";
@@ -4433,18 +4431,8 @@ function fetchLinkPreview(url, bubbleEl){
 }
 
 // ── Delete entire chat history ────────────────────────────────────────────────
-document.getElementById("btn-delete-chat").addEventListener("click", function(){
-  if(!currentRoom || !me) return;
-  if(!confirm("Delete chat history? This will only delete it for you.")) return;
 
-  // Store deleted room locally so it never shows messages again for this user
-  // Use /deleted/{roomId}/{username} = timestamp
-  db.ref("deleted/"+currentRoom+"/"+me.username).set(Date.now(), function(err){
-    if(err){ alert("Failed: "+err.message); return; }
-    // Clear messages from screen
-    document.getElementById("messages-list").innerHTML = "";
-  });
-});
+  
 
 // ── Delete message ────────────────────────────────────────────────────────────
 var delMenu    = document.getElementById("del-menu");
