@@ -1156,8 +1156,8 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
     <div id="chat-search-bar" style="display:none;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 12px;background:var(--bg-sidebar);border-bottom:1px solid var(--border);flex-shrink:0;">
       
       <input id="chat-search-input" placeholder="Search messages…" style="flex:1 1 140px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13.5px;outline:none;font-family:var(--font);"/>
-      
-      <input type="date" id="chat-date-input" style="flex:0 1 auto;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13px;outline:none;font-family:var(--font); cursor:pointer;"/>
+
+      <input type="text" placeholder="📅 Date" onfocus="this.type='date'" onblur="if(!this.value) this.type='text'" id="chat-date-input" style="flex:0 1 110px;padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13px;outline:none;font-family:var(--font); cursor:pointer;"/>
       
       <!-- Grouped buttons so they wrap nicely on mobile -->
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto;">
@@ -2230,6 +2230,8 @@ function closeSearch(){
   document.getElementById("chat-search-input").blur(); // Closes mobile keyboard
   document.getElementById("chat-search-input").value = "";
   document.getElementById("chat-date-input").value = ""; // Clears the calendar
+  document.getElementById("chat-date-input").type = "text"; // Resets placeholder
+  
   document.getElementById("chat-search-count").textContent = "";
   clearSearchHighlights();
   searchResults = []; searchIdx = 0;
