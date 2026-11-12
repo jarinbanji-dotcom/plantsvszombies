@@ -4087,13 +4087,23 @@ function applySeenTicks(seenTs){
 }
 
 // Mark seen when app gets focus (user comes back to tab/app)
+// Mark seen when app gets focus (user comes back to tab/app)
 document.addEventListener("visibilitychange", function(){
   if(!document.hidden){
     try { db.goOnline(); } catch(e){}
     if(!currentRoom || !me) return;
     markSeen(currentRoom);
+    
+    // FIX: Do NOT fetch "missed" messages if the user is currently viewing historical search results
+    if (document.getElementById("chat-search-bar").style.display !== "none" || !window._newestLoaded) {
+      return; 
+    }
+
     // Fetch any messages missed while tab was hidden — using the DOM's last key
     var ml = document.getElementById("messages-list");
+
+
+    
     var allRows = ml.querySelectorAll(".msg-row[data-key]");
     var lastKey = allRows.length ? allRows[allRows.length-1].dataset.key : null;
     if(!lastKey) return;
