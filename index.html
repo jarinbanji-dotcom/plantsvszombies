@@ -1897,8 +1897,12 @@ function openRoom(otherUser, otherName){
         });
 
         window._newestMsgKey = msgs[msgs.length-1].key;
-        ml.scrollTop = prevTop + (ml.scrollHeight - prevH);
+        
+        // FIX: Do NOT adjust ml.scrollTop here! 
+        // The browser automatically handles appending elements to the bottom without jumping.
+        
         if(msgs.length < 150) window._newestLoaded = true;
+        
         applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
 
         // Apply existing reactions to the newly-appended rows
