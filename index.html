@@ -2296,14 +2296,33 @@ function jumpToSearchResult(){
   ml.style.visibility = "hidden";
 
   // Load 150 messages ending at this message's key
-  db.ref("messages/"+currentRoom).orderByKey()
-    .endAt(item.key).limitToLast(150)
-    .once("value", function(snap){
+ 
+  // Fetch 50 messages before AND 50 messages after the search result
+  db.ref("messages/"+currentRoom).orderByKey().endAt(item.key).limitToLast(50).once("value", function(olderSnap){
+    db.ref("messages/"+currentRoom).orderByKey().startAt(item.key).limitToFirst(50).once("value", function(newerSnap){
+      
+      // Abort if search was closed or user switched rooms
+      if(document.getElementById("chat-search-bar").style.display === "none" || searchRoom !== currentRoom) {
+          document.getElementById("chat-loading-overlay").classList.remove("show");
+          ml.style.visibility = "visible";
+          return;
+      }
+
       ml.innerHTML = "";
       var lastDate = null;
       var deletedAt = window._deletedAt || 0;
 
-      snap.forEach(function(d){
+      // Combine the messages (skipping the duplicate search result in the middle)
+      var msgs = [];
+      olderSnap.forEach(function(d){ msgs.push(d); });
+      var isFirst = true;
+      newerSnap.forEach(function(d){
+          if(isFirst) { isFirst = false; return; }
+          msgs.push(d);
+      });
+
+      // Render all combined messages
+      msgs.forEach(function(d){
         var msg = d.val();
         if(msg.ts && msg.ts <= deletedAt) return;
         var mDate = fmtDate(msg.ts);
@@ -2331,13 +2350,15 @@ function jumpToSearchResult(){
         ml.appendChild(row);
       });
 
-      // Update oldest/newest keys for bidirectional loading
+      // Update oldest/newest keys for bidirectional scrolling
       var firstRow = ml.querySelector(".msg-row[data-key]");
       var allRows  = ml.querySelectorAll(".msg-row[data-key]");
       var lastRowEl = allRows.length ? allRows[allRows.length-1] : null;
       window._oldestMsgKey = firstRow ? firstRow.dataset.key : null;
       window._newestMsgKey = lastRowEl ? lastRowEl.dataset.key : null;
-      window._newestLoaded = false; // may have newer messages below
+      
+      // If the newer chunk had less than 50 messages, we are at the very bottom
+      window._newestLoaded = (newerSnap.numChildren() < 50); 
       window._loadingNewer = false;
       window._loadingMore  = false;
       window._loadMoreRoom = currentRoom;
@@ -2356,6 +2377,9 @@ function jumpToSearchResult(){
         applySeenTicks((window._seenCache&&window._seenCache[currentRoom])||0);
       }, 100);
     });
+  });
+
+  
 }
 
 document.getElementById("chat-search-input").addEventListener("input", function(){
