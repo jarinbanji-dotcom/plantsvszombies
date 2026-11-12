@@ -1153,9 +1153,15 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
     </div>
 
     <!-- In-chat search bar -->
+    <!-- In-chat search bar -->
     <div id="chat-search-bar" style="display:none;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-sidebar);border-bottom:1px solid var(--border);flex-shrink:0;">
       <input id="chat-search-input" placeholder="Search messages…" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13.5px;outline:none;font-family:var(--font);"/>
+      
+      <!-- NEW: Calendar Date Picker -->
+      <input type="date" id="chat-date-input" style="padding:7px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:20px;color:var(--text-primary);font-size:13px;outline:none;font-family:var(--font); cursor:pointer;"/>
+      
       <span id="chat-search-count" style="font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
+      
       <button class="icon-btn" id="chat-search-prev" title="Previous">↑</button>
       <button class="icon-btn" id="chat-search-next" title="Next">↓</button>
       <button class="icon-btn" id="chat-search-close" title="Close">✕</button>
@@ -2213,8 +2219,11 @@ document.getElementById("btn-search-chat").addEventListener("click", function(){
 });
 
 function closeSearch(){
+  
   document.getElementById("chat-search-bar").style.display = "none";
+  document.getElementById("chat-search-input").blur(); // Closes mobile keyboard
   document.getElementById("chat-search-input").value = "";
+  document.getElementById("chat-date-input").value = ""; // Clears the calendar
   document.getElementById("chat-search-count").textContent = "";
   clearSearchHighlights();
   searchResults = []; searchIdx = 0;
@@ -2228,6 +2237,43 @@ function closeSearch(){
 }
 
 document.getElementById("chat-search-close").addEventListener("click", closeSearch);
+
+
+  // ── Calendar Date Search ──
+document.getElementById("chat-date-input").addEventListener("change", function(){
+  var dateValue = this.value; // Format: YYYY-MM-DD
+  if(!dateValue) return;
+  
+  var countEl = document.getElementById("chat-search-count");
+  countEl.textContent = "Finding date…";
+  
+  // Create timestamps for the very start and very end of the selected day
+  var d = new Date(dateValue);
+  d.setHours(0, 0, 0, 0);
+  var startOfDay = d.getTime();
+  d.setHours(23, 59, 59, 999);
+  var endOfDay = d.getTime();
+  
+  // Ask Firebase for the FIRST message sent on this exact day
+  db.ref("messages/"+currentRoom).orderByChild("ts")
+    .startAt(startOfDay).endAt(endOfDay).limitToFirst(1)
+    .once("value", function(snap){
+      if(!snap.exists()){
+        countEl.textContent = "No messages";
+        return;
+      }
+      
+      var firstMsg = null;
+      snap.forEach(function(child){ firstMsg = { key: child.key, ts: child.val().ts }; });
+      
+      // Trick our existing jump function into thinking we just searched for this message
+      searchResults = [firstMsg];
+      searchIdx = 0;
+      document.getElementById("chat-search-input").value = ""; // Clear text search
+      
+      jumpToSearchResult();
+  });
+});
 
 function clearSearchHighlights(){
   document.querySelectorAll(".msg-highlight,.msg-highlight-current").forEach(function(el){
