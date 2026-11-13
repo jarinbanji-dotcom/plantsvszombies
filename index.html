@@ -613,19 +613,18 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   user-select:text;
 }
 
-  /* 🎁 Instagram-style Gift Message (++text++) */
+/* 🎁 Instagram-style Gift Message (++text++) */
 .fmt-gift {
-  display: block;
+  display: inline-block;
   background: linear-gradient(135deg, #ff007f, #ff004f);
-  border-radius: 20px;
-  padding: 16px;
-  margin: 4px 0;
+  border-radius: 12px;
+  padding: 8px 14px;
+  margin: 2px 0;
   cursor: pointer;
   position: relative;
   text-align: center;
-  min-width: 220px;
-  min-height: 85px;
-  box-shadow: 0 6px 16px rgba(255, 0, 127, 0.3);
+  min-width: 50px;
+  box-shadow: 0 4px 10px rgba(255, 0, 127, 0.3);
   transition: transform 0.15s ease;
   overflow: hidden;
   user-select: none;
@@ -633,36 +632,38 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 }
 .fmt-gift:active { transform: scale(0.95); }
 
-/* White Ribbon */
+/* Horizontal White Ribbon */
 .fmt-gift::before {
   content: ""; position: absolute;
-  top: 36px; left: 0; right: 0; height: 12px;
+  top: 50%; left: 0; right: 0; height: 6px;
+  transform: translateY(-50%);
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 2px 5px rgba(0,0,0,0.15); z-index: 1;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15); z-index: 1;
 }
 /* Bow Emoji */
 .fmt-gift::after {
-  content: "🎀"; font-size: 34px; position: absolute;
-  top: 25px; left: 50%; transform: translate(-50%, -50%);
-  z-index: 2; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.3));
+  content: "🎀"; font-size: 20px; position: absolute;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 2; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
 }
-.fmt-gift-label {
-  position: absolute; bottom: 12px; left: 0; right: 0;
-  color: #fff; font-size: 13.5px; font-weight: 700; z-index: 3;
-}
-.fmt-gift-inner { display: none; color: var(--text-primary); font-size: 14.5px; word-break: break-word; }
+
+/* Hide label, keep text layout space */
+.fmt-gift-label { display: none; }
+.fmt-gift-inner { visibility: hidden; font-size: 14.5px; word-break: break-word; }
 
 /* Revealed State */
 .fmt-gift.revealed {
   background: rgba(255, 0, 127, 0.1); border: 2px dashed #ff007f;
-  box-shadow: none; min-height: auto; padding: 12px 16px;
+  box-shadow: none; padding: 6px 12px;
   cursor: text; user-select: text; -webkit-user-select: text;
-  animation: giftPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation: giftPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.fmt-gift.revealed::before, .fmt-gift.revealed::after, .fmt-gift.revealed .fmt-gift-label { display: none; }
-.fmt-gift.revealed .fmt-gift-inner { display: inline; }
+.fmt-gift.revealed::before, .fmt-gift.revealed::after { display: none; }
+.fmt-gift.revealed .fmt-gift-inner { visibility: visible; color: var(--text-primary); }
 
 @keyframes giftPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+  
 
 #img-viewer{
   position:fixed;inset:0;background:rgba(0,0,0,.92);
@@ -3394,13 +3395,11 @@ var spoiler = e.target.closest(".fmt-spoiler");
     spoiler.classList.toggle("revealed");
   }
 
-  // Open Gift Message + Confetti
+  // Open Gift Message
   var gift = e.target.closest(".fmt-gift");
   if(gift && !gift.classList.contains("revealed")){
     gift.classList.add("revealed");
-    if(typeof triggerRain === 'function') triggerRain('🎉', 40, 2000);
   }
-});
   
 // ── Image viewer: zoom, pan, drag-to-close ──────────────────────────────────
 (function(){
