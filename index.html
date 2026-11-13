@@ -613,6 +613,57 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   user-select:text;
 }
 
+  /* 🎁 Instagram-style Gift Message (++text++) */
+.fmt-gift {
+  display: block;
+  background: linear-gradient(135deg, #ff007f, #ff004f);
+  border-radius: 20px;
+  padding: 16px;
+  margin: 4px 0;
+  cursor: pointer;
+  position: relative;
+  text-align: center;
+  min-width: 220px;
+  min-height: 85px;
+  box-shadow: 0 6px 16px rgba(255, 0, 127, 0.3);
+  transition: transform 0.15s ease;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.fmt-gift:active { transform: scale(0.95); }
+
+/* White Ribbon */
+.fmt-gift::before {
+  content: ""; position: absolute;
+  top: 36px; left: 0; right: 0; height: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15); z-index: 1;
+}
+/* Bow Emoji */
+.fmt-gift::after {
+  content: "🎀"; font-size: 34px; position: absolute;
+  top: 25px; left: 50%; transform: translate(-50%, -50%);
+  z-index: 2; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.3));
+}
+.fmt-gift-label {
+  position: absolute; bottom: 12px; left: 0; right: 0;
+  color: #fff; font-size: 13.5px; font-weight: 700; z-index: 3;
+}
+.fmt-gift-inner { display: none; color: var(--text-primary); font-size: 14.5px; word-break: break-word; }
+
+/* Revealed State */
+.fmt-gift.revealed {
+  background: rgba(255, 0, 127, 0.1); border: 2px dashed #ff007f;
+  box-shadow: none; min-height: auto; padding: 12px 16px;
+  cursor: text; user-select: text; -webkit-user-select: text;
+  animation: giftPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.fmt-gift.revealed::before, .fmt-gift.revealed::after, .fmt-gift.revealed .fmt-gift-label { display: none; }
+.fmt-gift.revealed .fmt-gift-inner { display: inline; }
+
+@keyframes giftPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
 #img-viewer{
   position:fixed;inset:0;background:rgba(0,0,0,.92);
   display:none;align-items:center;justify-content:center;
@@ -1273,8 +1324,9 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
           <div class="fmt-help-row"><span class="fmt-help-code">#text#</span><span class="fmt-help-preview"><span class="fmt-header" style="font-size:1.1em;">Header</span></span></div>
           <div class="fmt-help-row"><span class="fmt-help-code">^^text^^</span><span class="fmt-help-preview"><span class="fmt-glow">Glow</span></span></div>
           <div class="fmt-help-row"><span class="fmt-help-code">!!text!!</span><span class="fmt-help-preview"><span class="fmt-shake">Shake</span></span></div>
-          <div class="fmt-help-row"><span class="fmt-help-code">$$text$$</span><span class="fmt-help-preview"><span class="fmt-rainbow">Rainbow</span></span></div>
+         <div class="fmt-help-row"><span class="fmt-help-code">$$text$$</span><span class="fmt-help-preview"><span class="fmt-rainbow">Rainbow</span></span></div>
           <div class="fmt-help-row"><span class="fmt-help-code">||text||</span><span class="fmt-help-preview"><span class="fmt-spoiler">Tap to reveal</span></span></div>
+          <div class="fmt-help-row"><span class="fmt-help-code">++text++</span><span class="fmt-help-preview"><span style="color:#ff007f;font-weight:700;">🎁 Gift Message</span></span></div>
         </div>
 
         <button class="emoji-btn" id="btn-emoji" title="Emoji">😊</button>
@@ -3337,11 +3389,19 @@ document.getElementById("messages-list").addEventListener("click", function(e){
   var q = e.target.closest(".quoted");
   if(q && q.dataset.replykey) scrollToMsg(q.dataset.replykey);
 
-  var spoiler = e.target.closest(".fmt-spoiler");
+var spoiler = e.target.closest(".fmt-spoiler");
   if(spoiler){
     spoiler.classList.toggle("revealed");
   }
+
+  // Open Gift Message + Confetti
+  var gift = e.target.closest(".fmt-gift");
+  if(gift && !gift.classList.contains("revealed")){
+    gift.classList.add("revealed");
+    if(typeof triggerRain === 'function') triggerRain('🎉', 40, 2000);
+  }
 });
+  
 // ── Image viewer: zoom, pan, drag-to-close ──────────────────────────────────
 (function(){
   var viewer   = document.getElementById("img-viewer");
@@ -4390,9 +4450,14 @@ function applyTextFormatting(escapedHtml){
   // Triple-backtick monospace first (so its content isn't touched by other rules)
   html = html.replace(/```([^`\n]+)```/g, '<span class="fmt-mono">$1</span>');
 
-  // Spoiler / blur-until-click — ||text||
+ // Spoiler / blur-until-click — ||text||
   html = html.replace(/\|\|([^|\n]+)\|\|/g, function(_, inner){
     return '<span class="fmt-spoiler" data-spoiler="1">'+inner+'</span>';
+  });
+
+  // Gift Message — ++text++
+  html = html.replace(/\+\+([^\+\n]+)\+\+/g, function(_, inner){
+    return '<span class="fmt-gift"><span class="fmt-gift-inner">'+inner+'</span><span class="fmt-gift-label">Tap to reveal gift message</span></span>';
   });
 
   // Big header — #text#
