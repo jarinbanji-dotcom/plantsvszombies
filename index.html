@@ -428,6 +428,15 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   opacity:1;
   cursor:default;
   z-index:99999;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+}
+#secret-dot::after{
+  content:"";
+  position:absolute;
+  inset:-14px;
 }
 
 
@@ -4532,31 +4541,136 @@ document.addEventListener("touchstart", function(e){
   if(!delMenu.contains(e.target)) delMenu.classList.remove("show");
 });
 
-// ── Secret unlock ──────────────────────────────────────────────────────────
+// ── Secret unlock (Long Press) + Front Page Visit Tracker ──────────────────
 (function(){
   var dot   = document.getElementById("secret-dot");
   var decoy = document.getElementById("decoy-screen");
-  var clicks = 0, timer = null;
 
-  dot.addEventListener("click", function(e){
-    e.stopPropagation();
-    clicks++;
-    clearTimeout(timer);
-    // Single click reveals the app after 1s wait (feels natural)
-    timer = setTimeout(function(){
-      if(clicks >= 1){
-        decoy.classList.add("hide");
-        setTimeout(function(){
-          decoy.style.display = "none";
-          // Now show auth
-          document.getElementById("auth-screen").style.display = "flex";
-          document.getElementById("loading-screen").style.display = "none";
-        }, 400);
-      }
-      clicks = 0;
-    }, 400);
+  // ── 1. Front page visit tracking (stored in Firebase RTDB) ──
+  var visitStart   = Date.now();
+  var unlocked     = false;
+  var visitKey     = null;
+  var visitRef     = null;
+  var stayInterval = null;
+  var DB_URL       = "https://forgrey-5cff2-default-rtdb.firebaseio.com";
+
+  function formatDuration(sec){
+    sec = Math.max(0, Math.floor(sec));
+    if(sec < 60) return sec + "s";
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    if(m < 60) return m + "m " + s + "s";
+    var h = Math.floor(m / 60);
+    return h + "h " + (m % 60) + "m " + s + "s";
+  }
+
+  function getElapsedSec(){
+    return Math.floor((Date.now() - visitStart) / 1000);
+  }
+
+  // Increment total visit count
+  db.ref("frontpage_visits/totalCount").transaction(function(curr){
+    return (curr || 0) + 1;
   });
+
+  // Create a log entry for this visit
+  visitRef = db.ref("frontpage_visits/logs").push();
+  visitKey = visitRef.key;
+  visitRef.set({
+    enteredAt:         visitStart,
+    enteredTime:       new Date(visitStart).toLocaleString(),
+    durationSeconds:   0,
+    durationFormatted: "0s",
+    enteredApp:        false,
+    device:            /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? "Mobile" : "Desktop"
+  });
+
+  function updateStayDuration(useKeepalive, markEntered){
+    if(!visitRef || !visitKey) return;
+    var sec = getElapsedSec();
+    var payload = {
+      durationSeconds:   sec,
+      durationFormatted: formatDuration(sec),
+      lastUpdated:       Date.now()
+    };
+    if(markEntered) payload.enteredApp = true;
+
+    if(useKeepalive){
+      // Reliable flush when closing tab / switching apps
+      try {
+        fetch(DB_URL + "/frontpage_visits/logs/" + visitKey + ".json", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          keepalive: true
+        });
+      } catch(e){}
+    }
+    visitRef.update(payload);
+  }
+
+  // Update stay time every 5 seconds while on front page
+  stayInterval = setInterval(function(){
+    if(!unlocked && !document.hidden) updateStayDuration(false, false);
+  }, 5000);
+
+  // Flush exact duration when leaving/hiding the page
+  document.addEventListener("visibilitychange", function(){
+    if(document.hidden && !unlocked) updateStayDuration(true, false);
+  });
+  window.addEventListener("pagehide", function(){
+    if(!unlocked) updateStayDuration(true, false);
+  });
+
+  // ── 2. Long press dot to enter (800ms hold) ──
+  var HOLD_MS = 800; // Change to 1000 or 1500 if you want a longer hold
+  var holdTimer = null;
+  var startX = 0, startY = 0;
+
+  function unlockSite(){
+    if(unlocked) return;
+    unlocked = true;
+    clearInterval(stayInterval);
+    updateStayDuration(false, true);
+
+    if(navigator.vibrate) navigator.vibrate(40);
+    dot.style.display = "none";
+    decoy.classList.add("hide");
+    setTimeout(function(){
+      decoy.style.display = "none";
+      document.getElementById("auth-screen").style.display = "flex";
+      document.getElementById("loading-screen").style.display = "none";
+    }, 400);
+  }
+
+  function startHold(e){
+    if(unlocked) return;
+    e.stopPropagation();
+    startX = e.clientX || 0;
+    startY = e.clientY || 0;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(unlockSite, HOLD_MS);
+  }
+
+  function cancelHold(){
+    clearTimeout(holdTimer);
+    holdTimer = null;
+  }
+
+  dot.addEventListener("pointerdown", startHold);
+  dot.addEventListener("pointerup", cancelHold);
+  dot.addEventListener("pointercancel", cancelHold);
+  dot.addEventListener("pointerleave", cancelHold);
+  dot.addEventListener("pointermove", function(e){
+    if(!holdTimer) return;
+    if(Math.abs(e.clientX - startX) > 15 || Math.abs(e.clientY - startY) > 15){
+      cancelHold();
+    }
+  });
+  dot.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 })();
+
+  
 
 // 🎂 Birthday decorations for Yeji — starts AFTER login ──────────────────────
 var bdayStarted = false;
