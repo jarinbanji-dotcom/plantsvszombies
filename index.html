@@ -3537,12 +3537,13 @@ var ctxMenu = document.getElementById("ctx-menu");
 
 function showCtxMenu(x, y, msgKey, row, mine){
   ctxTarget = { key: msgKey, row: row, mine: mine };
+  var canModify = mine && me && me.username !== "grey";
   var editEl = document.getElementById("ctx-edit");
   var delEl  = document.getElementById("ctx-delete");
   var divEl  = document.querySelector(".ctx-divider");
-  if(editEl) editEl.style.display = mine ? "flex" : "none";
-  if(delEl)  delEl.style.display  = mine ? "flex" : "none";
-  if(divEl)  divEl.style.display  = mine ? "inline" : "none";
+  if(editEl) editEl.style.display = canModify ? "flex" : "none";
+  if(delEl)  delEl.style.display  = canModify ? "flex" : "none";
+  if(divEl)  divEl.style.display  = canModify ? "inline" : "none";
 
   ctxMenu.style.right = "10px";
   ctxMenu.style.left  = "auto";
