@@ -4849,12 +4849,13 @@ document.addEventListener("touchstart", function(e){
 })();
 
 // ── Read-Only Preview Page + Calendar View (Nikky & Grey: Jun 1 – Oct 1, 2026) ──
+// ── Fast Paginated Read-Only Preview + Calendar (Jun 1 – Oct 1, 2026) ──
 (function(){
   var PREVIEW_ROOM  = "grey__nikky";
   var PREVIEW_YEAR  = 2026;
-  var PREVIEW_START = new Date(2026, 5, 1, 0, 0, 0, 0).getTime();      // Jun 1, 2026 00:00:00
-  var PREVIEW_END   = new Date(2026, 9, 1, 23, 59, 59, 999).getTime(); // Oct 1, 2026 23:59:59
-  var CHUNK_SIZE    = 80;
+  var PREVIEW_START = new Date(2026, 5, 1, 0, 0, 0, 0).getTime();      // Jun 1, 2026
+  var PREVIEW_END   = new Date(2026, 9, 1, 23, 59, 59, 999).getTime(); // Oct 1, 2026
+  var PAGE_SIZE     = 50;
 
   var MONTHS = [
     { idx: 5, short: "Jun", name: "June 2026" },
@@ -4864,38 +4865,34 @@ document.addEventListener("touchstart", function(e){
     { idx: 9, short: "Oct", name: "October 2026" }
   ];
 
-  var pvMsgs = [];
   var pvReactions = {};
-  var pvDateMap = {};       // "YYYY-MM-DD" -> { firstIdx, count }
-  var pvStartIdx = 0;
-  var pvEndIdx = 0;
-  var pvLoaded = false;
-  var activeCalMonth = 5;   // June
+  var pvFirstTs   = null;
+  var pvLastTs    = null;
+  var pvHasMoreDown = true;
+  var pvHasMoreUp   = false;
+  var pvLoading     = false;
+  var pvLoaded      = false;
+  var activeCalMonth = 5;
   var selectedDateKey = null;
 
-  var screenEl   = document.getElementById("preview-screen");
-  var listEl     = document.getElementById("pv-messages");
-  var subEl      = document.getElementById("pv-subtitle");
-  var calModal   = document.getElementById("pv-cal-modal");
-  var calTitle   = document.getElementById("pv-cal-title");
-  var calMonths  = document.getElementById("pv-cal-months");
-  var calGrid    = document.getElementById("pv-cal-grid");
-  var calStats   = document.getElementById("pv-cal-stats");
+  var screenEl  = document.getElementById("preview-screen");
+  var listEl    = document.getElementById("pv-messages");
+  var subEl     = document.getElementById("pv-subtitle");
+  var calModal  = document.getElementById("pv-cal-modal");
+  var calTitle  = document.getElementById("pv-cal-title");
+  var calMonths = document.getElementById("pv-cal-months");
+  var calGrid   = document.getElementById("pv-cal-grid");
+  var calStats  = document.getElementById("pv-cal-stats");
 
-  // ── Preview Mode Analytics (IST entry time, stay duration, calendar searches) ──
-  var PV_DB_URL     = "https://forgrey-5cff2-default-rtdb.firebaseio.com";
-  var pvVisitStart  = 0;
-  var pvVisitRef    = null;
-  var pvVisitKey    = null;
-  var pvStayTimer   = null;
-  var pvTrackingOn  = false;
+  // ── Preview Analytics (IST entry time, stay duration, calendar searches) ──
+  var PV_DB_URL    = "https://forgrey-5cff2-default-rtdb.firebaseio.com";
+  var pvVisitStart = 0, pvVisitRef = null, pvVisitKey = null, pvStayTimer = null, pvTrackingOn = false;
 
   function fmtIST(ts){
     return new Date(ts).toLocaleString("en-IN", {
       timeZone: "Asia/Kolkata",
       day: "2-digit", month: "short", year: "numeric",
-      hour: "2-digit", minute: "2-digit", second: "2-digit",
-      hour12: true
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true
     }) + " IST";
   }
 
@@ -4904,93 +4901,64 @@ document.addEventListener("touchstart", function(e){
     if(sec < 60) return sec + "s";
     var m = Math.floor(sec / 60), s = sec % 60;
     if(m < 60) return m + "m " + s + "s";
-    var h = Math.floor(m / 60);
-    return h + "h " + (m % 60) + "m " + s + "s";
+    return Math.floor(m / 60) + "h " + (m % 60) + "m " + s + "s";
   }
 
   function startPreviewTracking(){
     if(pvTrackingOn) return;
     pvTrackingOn = true;
     pvVisitStart = Date.now();
-
-    db.ref("preview_visits/totalCount").transaction(function(curr){
-      return (curr || 0) + 1;
-    });
-
+    db.ref("preview_visits/totalCount").transaction(function(c){ return (c || 0) + 1; });
     pvVisitRef = db.ref("preview_visits/logs").push();
     pvVisitKey = pvVisitRef.key;
     pvVisitRef.set({
-      enteredAt:         pvVisitStart,
-      enteredTimeIST:    fmtIST(pvVisitStart),
-      durationSeconds:   0,
+      enteredAt: pvVisitStart,
+      enteredTimeIST: fmtIST(pvVisitStart),
+      durationSeconds: 0,
       durationFormatted: "0s",
-      device:            /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? "Mobile" : "Desktop"
+      device: /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? "Mobile" : "Desktop"
     });
-
-    function flushStay(useKeepalive){
+    function flushStay(keepalive){
       if(!pvVisitRef || !pvVisitKey) return;
       var sec = Math.floor((Date.now() - pvVisitStart) / 1000);
-      var payload = {
-        durationSeconds:   sec,
-        durationFormatted: fmtDur(sec),
-        lastUpdatedIST:    fmtIST(Date.now())
-      };
-      if(useKeepalive){
+      var payload = { durationSeconds: sec, durationFormatted: fmtDur(sec), lastUpdatedIST: fmtIST(Date.now()) };
+      if(keepalive){
         try {
           fetch(PV_DB_URL + "/preview_visits/logs/" + pvVisitKey + ".json", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-            keepalive: true
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload), keepalive: true
           });
         } catch(e){}
       }
       pvVisitRef.update(payload);
     }
-
-    pvStayTimer = setInterval(function(){
-      if(!document.hidden) flushStay(false);
-    }, 5000);
-
-    document.addEventListener("visibilitychange", function(){
-      if(document.hidden) flushStay(true);
-    });
-    window.addEventListener("pagehide", function(){
-      flushStay(true);
-    });
+    pvStayTimer = setInterval(function(){ if(!document.hidden) flushStay(false); }, 5000);
+    document.addEventListener("visibilitychange", function(){ if(document.hidden) flushStay(true); });
+    window.addEventListener("pagehide", function(){ flushStay(true); });
   }
 
   function logCalendarSearch(dateKey){
     if(!pvVisitRef) return;
-    pvVisitRef.child("searchedDates").push({
-      date:          dateKey,
-      searchedAtIST: fmtIST(Date.now())
-    });
+    pvVisitRef.child("searchedDates").push({ date: dateKey, searchedAtIST: fmtIST(Date.now()) });
   }
 
   function toDateKey(ts){
     var d = new Date(ts);
-    return d.getFullYear() + "-" +
-      String(d.getMonth() + 1).padStart(2, "0") + "-" +
-      String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
 
   function buildMsgRow(item){
     var msg = item.val;
     var isNikky = (msg.from || "").toLowerCase() === "nikky";
-    var senderLabel = isNikky ? "Nikky" : "Grey";
     var isMedia = msg.type === "gif" || msg.type === "image" || msg.type === "audio";
-
     var row = document.createElement("div");
     row.className = "msg-row " + (isNikky ? "mine" : "theirs");
     row.dataset.key = item.key;
 
-    var qHtml = "";
-    if(msg.replyTo){
-      qHtml = '<div class="quoted" data-pv-reply="' + escHtml(msg.replyTo.key || "") + '">' +
-        '<div class="quoted-name">' + escHtml(msg.replyTo.from || "") + '</div>' +
-        '<div class="quoted-text">' + escHtml(msg.replyTo.text || "") + '</div></div>';
-    }
+    var qHtml = msg.replyTo
+      ? '<div class="quoted"><div class="quoted-name">' + escHtml(msg.replyTo.from || "") + '</div>' +
+        '<div class="quoted-text">' + escHtml(msg.replyTo.text || "") + '</div></div>'
+      : "";
 
     var bc;
     if(msg.type === "gif")        bc = '<img class="msg-gif" src="' + escHtml(msg.url) + '" alt="GIF" loading="lazy"/>';
@@ -5001,19 +4969,15 @@ document.addEventListener("touchstart", function(e){
 
     row.innerHTML =
       '<div class="bubble" style="' + (isMedia ? "padding:6px 6px 20px;" : "") + '">' +
-        '<div class="pv-sender-tag">' + senderLabel + '</div>' +
+        '<div class="pv-sender-tag">' + (isNikky ? "Nikky" : "Grey") + '</div>' +
         qHtml + bc +
         '<span class="bubble-meta">' + fmtTime(msg.ts) + '</span>' +
       '</div>';
 
-    // Read-only reactions (non-clickable)
     var msgReacts = pvReactions[item.key];
     if(msgReacts && Object.keys(msgReacts).length){
       var counts = {};
-      Object.keys(msgReacts).forEach(function(u){
-        var em = msgReacts[u];
-        counts[em] = (counts[em] || 0) + 1;
-      });
+      Object.keys(msgReacts).forEach(function(u){ counts[msgReacts[u]] = (counts[msgReacts[u]] || 0) + 1; });
       row.classList.add("has-reaction");
       var rDiv = document.createElement("div");
       rDiv.className = "reactions";
@@ -5026,130 +4990,196 @@ document.addEventListener("touchstart", function(e){
       });
       row.appendChild(rDiv);
     }
-
     return row;
   }
 
-  function renderSlice(startIdx, endIdx){
-    listEl.innerHTML = "";
-    pvStartIdx = Math.max(0, startIdx);
-    pvEndIdx   = Math.min(pvMsgs.length, endIdx);
+  function extractMsgs(snap){
+    var arr = [];
+    snap.forEach(function(c){
+      var v = c.val();
+      if(v && v.ts && v.ts >= PREVIEW_START && v.ts <= PREVIEW_END){
+        arr.push({ key: c.key, val: v });
+      }
+    });
+    arr.sort(function(a, b){ return a.val.ts - b.val.ts; });
+    return arr;
+  }
 
-    if(!pvMsgs.length){
-      listEl.innerHTML = '<div class="pv-empty">💬 No chats found between Jun 1 and Oct 1, 2026.</div>';
+  function renderInitial(msgs, highlightDateKey){
+    listEl.innerHTML = "";
+    if(!msgs.length){
+      listEl.innerHTML = '<div class="pv-empty">💬 No chats found for this date.</div>';
+      pvFirstTs = pvLastTs = null;
+      pvHasMoreDown = pvHasMoreUp = false;
       return;
     }
-
     var frag = document.createDocumentFragment();
-    var lastDateKey = null;
-
-    for(var i = pvStartIdx; i < pvEndIdx; i++){
-      var item = pvMsgs[i];
+    var lastDk = null;
+    msgs.forEach(function(item){
       var dk = toDateKey(item.val.ts);
-      if(dk !== lastDateKey){
+      if(dk !== lastDk){
         var sep = document.createElement("div");
-        sep.className = "date-sep";
+        sep.className = "date-sep" + (dk === highlightDateKey ? " pv-date-flash" : "");
         sep.dataset.datekey = dk;
         sep.textContent = fmtDate(item.val.ts);
         frag.appendChild(sep);
-        lastDateKey = dk;
+        lastDk = dk;
       }
       frag.appendChild(buildMsgRow(item));
-    }
+    });
     listEl.appendChild(frag);
+    pvFirstTs = msgs[0].val.ts;
+    pvLastTs  = msgs[msgs.length - 1].val.ts;
+    pvHasMoreDown = msgs.length >= PAGE_SIZE && pvLastTs < PREVIEW_END;
+    pvHasMoreUp   = pvFirstTs > PREVIEW_START;
+    listEl.scrollTop = 0;
   }
 
-  function appendNextChunk(){
-    if(pvEndIdx >= pvMsgs.length) return;
-    var nextEnd = Math.min(pvMsgs.length, pvEndIdx + CHUNK_SIZE);
-    var seps = listEl.querySelectorAll(".date-sep");
-    var lastDateKey = seps.length ? seps[seps.length - 1].dataset.datekey : null;
-    var frag = document.createDocumentFragment();
-
-    for(var i = pvEndIdx; i < nextEnd; i++){
-      var item = pvMsgs[i];
-      var dk = toDateKey(item.val.ts);
-      if(dk !== lastDateKey){
-        var sep = document.createElement("div");
-        sep.className = "date-sep";
-        sep.dataset.datekey = dk;
-        sep.textContent = fmtDate(item.val.ts);
-        frag.appendChild(sep);
-        lastDateKey = dk;
-      }
-      frag.appendChild(buildMsgRow(item));
-    }
-    listEl.appendChild(frag);
-    pvEndIdx = nextEnd;
+  function loadMoreDown(){
+    if(pvLoading || !pvHasMoreDown || !pvLastTs) return;
+    pvLoading = true;
+    db.ref("messages/" + PREVIEW_ROOM).orderByChild("ts")
+      .startAt(pvLastTs + 1).endAt(PREVIEW_END).limitToFirst(PAGE_SIZE)
+      .once("value", function(snap){
+        pvLoading = false;
+        var msgs = extractMsgs(snap);
+        if(!msgs.length){ pvHasMoreDown = false; return; }
+        var seps = listEl.querySelectorAll(".date-sep");
+        var lastDk = seps.length ? seps[seps.length - 1].dataset.datekey : null;
+        var frag = document.createDocumentFragment();
+        msgs.forEach(function(item){
+          var dk = toDateKey(item.val.ts);
+          if(dk !== lastDk){
+            var sep = document.createElement("div");
+            sep.className = "date-sep"; sep.dataset.datekey = dk; sep.textContent = fmtDate(item.val.ts);
+            frag.appendChild(sep); lastDk = dk;
+          }
+          frag.appendChild(buildMsgRow(item));
+        });
+        listEl.appendChild(frag);
+        pvLastTs = msgs[msgs.length - 1].val.ts;
+        pvHasMoreDown = msgs.length >= PAGE_SIZE && pvLastTs < PREVIEW_END;
+      });
   }
 
-  function prependPrevChunk(){
-    if(pvStartIdx <= 0) return;
-    var prevStart = Math.max(0, pvStartIdx - CHUNK_SIZE);
-    var prevTop = listEl.scrollTop;
-    var prevH   = listEl.scrollHeight;
-
-    // Remove duplicate first date separator if it matches the last item being prepended
-    var firstSep = listEl.querySelector(".date-sep");
-    var lastNewDateKey = toDateKey(pvMsgs[pvStartIdx - 1].val.ts);
-    if(firstSep && firstSep.dataset.datekey === lastNewDateKey){
-      firstSep.remove();
-    }
-
-    var frag = document.createDocumentFragment();
-    var lastDateKey = null;
-    for(var i = prevStart; i < pvStartIdx; i++){
-      var item = pvMsgs[i];
-      var dk = toDateKey(item.val.ts);
-      if(dk !== lastDateKey){
-        var sep = document.createElement("div");
-        sep.className = "date-sep";
-        sep.dataset.datekey = dk;
-        sep.textContent = fmtDate(item.val.ts);
-        frag.appendChild(sep);
-        lastDateKey = dk;
-      }
-      frag.appendChild(buildMsgRow(item));
-    }
-    listEl.insertBefore(frag, listEl.firstChild);
-    pvStartIdx = prevStart;
-    listEl.scrollTop = prevTop + (listEl.scrollHeight - prevH);
+  function loadMoreUp(){
+    if(pvLoading || !pvHasMoreUp || !pvFirstTs) return;
+    pvLoading = true;
+    db.ref("messages/" + PREVIEW_ROOM).orderByChild("ts")
+      .startAt(PREVIEW_START).endAt(pvFirstTs - 1).limitToLast(PAGE_SIZE)
+      .once("value", function(snap){
+        pvLoading = false;
+        var msgs = extractMsgs(snap);
+        if(!msgs.length){ pvHasMoreUp = false; return; }
+        var prevTop = listEl.scrollTop, prevH = listEl.scrollHeight;
+        var firstSep = listEl.querySelector(".date-sep");
+        if(firstSep && firstSep.dataset.datekey === toDateKey(msgs[msgs.length - 1].val.ts)) firstSep.remove();
+        var frag = document.createDocumentFragment(), lastDk = null;
+        msgs.forEach(function(item){
+          var dk = toDateKey(item.val.ts);
+          if(dk !== lastDk){
+            var sep = document.createElement("div");
+            sep.className = "date-sep"; sep.dataset.datekey = dk; sep.textContent = fmtDate(item.val.ts);
+            frag.appendChild(sep); lastDk = dk;
+          }
+          frag.appendChild(buildMsgRow(item));
+        });
+        listEl.insertBefore(frag, listEl.firstChild);
+        pvFirstTs = msgs[0].val.ts;
+        pvHasMoreUp = msgs.length >= PAGE_SIZE && pvFirstTs > PREVIEW_START;
+        listEl.scrollTop = prevTop + (listEl.scrollHeight - prevH);
+      });
   }
 
-  // Smooth chunked scrolling up & down
   listEl.addEventListener("scroll", function(){
-    if(listEl.scrollTop < 140 && pvStartIdx > 0){
-      prependPrevChunk();
-    }
-    var distBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight;
-    if(distBottom < 140 && pvEndIdx < pvMsgs.length){
-      appendNextChunk();
-    }
+    if(listEl.scrollTop < 120) loadMoreUp();
+    if(listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 120) loadMoreDown();
   });
 
-  // Allow spoiler reveal & jumping to quoted replies (read-only)
   listEl.addEventListener("click", function(e){
     var spoiler = e.target.closest(".fmt-spoiler");
-    if(spoiler){ spoiler.classList.toggle("revealed"); return; }
-
-    var q = e.target.closest(".quoted[data-pv-reply]");
-    if(q && q.dataset.pvReply){
-      var key = q.dataset.pvReply;
-      var el = listEl.querySelector('.msg-row[data-key="' + key + '"]');
-      if(el){
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
-      }
-      for(var i = 0; i < pvMsgs.length; i++){
-        if(pvMsgs[i].key === key){
-          renderSlice(Math.max(0, i - 15), i + CHUNK_SIZE);
-          var target = listEl.querySelector('.msg-row[data-key="' + key + '"]');
-          if(target) target.scrollIntoView({ behavior: "instant", block: "center" });
-          break;
-        }
-      }
-    }
+    if(spoiler) spoiler.classList.toggle("revealed");
   });
+  screenEl.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+
+  // ── Calendar View (Queries Firebase directly on tap — zero upfront lag) ──
+  function renderCalendar(){
+    var mInfo = MONTHS.find(function(m){ return m.idx === activeCalMonth; }) || MONTHS[0];
+    calTitle.textContent = mInfo.name;
+    calMonths.innerHTML = "";
+    MONTHS.forEach(function(m){
+      var b = document.createElement("button");
+      b.className = "pv-m-btn" + (m.idx === activeCalMonth ? " active" : "");
+      b.textContent = m.short;
+      b.addEventListener("click", function(){ activeCalMonth = m.idx; renderCalendar(); });
+      calMonths.appendChild(b);
+    });
+
+    calGrid.innerHTML = "";
+    var firstDay = new Date(PREVIEW_YEAR, activeCalMonth, 1).getDay();
+    var daysInMonth = new Date(PREVIEW_YEAR, activeCalMonth + 1, 0).getDate();
+    for(var blank = 0; blank < firstDay; blank++) calGrid.appendChild(document.createElement("div"));
+
+    for(var d = 1; d <= daysInMonth; d++){
+      var dayTs = new Date(PREVIEW_YEAR, activeCalMonth, d, 12, 0, 0).getTime();
+      var dk = PREVIEW_YEAR + "-" + String(activeCalMonth + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+      var inRange = (dayTs >= PREVIEW_START && dayTs <= PREVIEW_END);
+      var cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "pv-day" + (inRange ? " has-msgs" : " disabled") + (selectedDateKey === dk ? " selected" : "");
+      cell.textContent = d;
+      if(inRange){
+        (function(dateKey, yr, mo, day){
+          cell.addEventListener("click", function(){ jumpToPreviewDate(dateKey, yr, mo, day); });
+        })(dk, PREVIEW_YEAR, activeCalMonth, d);
+      }
+      calGrid.appendChild(cell);
+    }
+    calStats.textContent = "Tap any date to jump to chats";
+  }
+
+  function jumpToPreviewDate(dateKey, yr, mo, day){
+    selectedDateKey = dateKey;
+    logCalendarSearch(dateKey);
+    calModal.classList.remove("open");
+    listEl.innerHTML = '<div class="pv-empty"><div class="spinner"></div><span>Loading ' + dateKey + '…</span></div>';
+
+    var dayStart = new Date(yr, mo, day, 0, 0, 0, 0).getTime();
+    db.ref("messages/" + PREVIEW_ROOM).orderByChild("ts")
+      .startAt(dayStart).endAt(PREVIEW_END).limitToFirst(PAGE_SIZE)
+      .once("value", function(snap){
+        renderInitial(extractMsgs(snap), dateKey);
+      });
+  }
+
+  document.getElementById("pv-open-cal").addEventListener("click", function(){ renderCalendar(); calModal.classList.add("open"); });
+  document.getElementById("pv-cal-close").addEventListener("click", function(){ calModal.classList.remove("open"); });
+  calModal.addEventListener("click", function(e){ if(e.target === calModal) calModal.classList.remove("open"); });
+
+  window.openPreviewPage = function(){
+    screenEl.classList.add("open");
+    startPreviewTracking();
+    if(pvLoaded) return;
+    pvLoaded = true;
+
+    listEl.innerHTML = '<div class="pv-empty"><div class="spinner"></div><span>Loading chats…</span></div>';
+
+    // Load reactions in background (non-blocking)
+    db.ref("reactions/" + PREVIEW_ROOM).once("value", function(rSnap){
+      pvReactions = rSnap.val() || {};
+    });
+
+    // Load only the first 50 messages immediately
+    db.ref("messages/" + PREVIEW_ROOM).orderByChild("ts")
+      .startAt(PREVIEW_START).endAt(PREVIEW_END).limitToFirst(PAGE_SIZE)
+      .once("value", function(snap){
+        subEl.textContent = "Jun 1 – Oct 1, 2026 · Read-only";
+        renderInitial(extractMsgs(snap), null);
+      }, function(err){
+        listEl.innerHTML = '<div class="pv-empty">Failed to load: ' + escHtml(err.message) + '</div>';
+      });
+  };
+})();
 
   // Disable right-click menu in preview
   screenEl.addEventListener("contextmenu", function(e){ e.preventDefault(); });
