@@ -1042,6 +1042,24 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
   user-select:none;-webkit-user-select:none;
 }
 #preview-screen.open{display:flex;}
+
+#preview-screen.has-bg::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:var(--chat-bg-url);
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+  opacity:0.3;
+  z-index:0;
+  pointer-events:none;
+}
+#preview-screen > *{
+  position:relative;
+  z-index:1;
+}
+  
 .pv-header{
   display:flex;align-items:center;gap:10px;
   padding:10px 14px;height:62px;flex-shrink:0;
@@ -5168,6 +5186,15 @@ document.addEventListener("touchstart", function(e){
     db.ref("reactions/" + PREVIEW_ROOM).once("value", function(rSnap){
       pvReactions = rSnap.val() || {};
     });
+
+    // ← Paste it right here (inside openPreviewPage)
+    db.ref("chatbg/" + PREVIEW_ROOM).once("value", function(bgSnap){
+      var bg = bgSnap.val();
+      if(bg && bg.url){
+        screenEl.style.setProperty("--chat-bg-url", "url('" + bg.url + "')");
+        screenEl.classList.add("has-bg");
+      }
+    });    
 
     // Load only the first 50 messages immediately
     db.ref("messages/" + PREVIEW_ROOM).orderByChild("ts")
