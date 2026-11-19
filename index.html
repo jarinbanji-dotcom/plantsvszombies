@@ -4882,6 +4882,92 @@ document.addEventListener("touchstart", function(e){
   var calGrid    = document.getElementById("pv-cal-grid");
   var calStats   = document.getElementById("pv-cal-stats");
 
+  // ── Preview Mode Analytics (IST entry time, stay duration, calendar searches) ──
+  var PV_DB_URL     = "https://forgrey-5cff2-default-rtdb.firebaseio.com";
+  var pvVisitStart  = 0;
+  var pvVisitRef    = null;
+  var pvVisitKey    = null;
+  var pvStayTimer   = null;
+  var pvTrackingOn  = false;
+
+  function fmtIST(ts){
+    return new Date(ts).toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: true
+    }) + " IST";
+  }
+
+  function fmtDur(sec){
+    sec = Math.max(0, Math.floor(sec));
+    if(sec < 60) return sec + "s";
+    var m = Math.floor(sec / 60), s = sec % 60;
+    if(m < 60) return m + "m " + s + "s";
+    var h = Math.floor(m / 60);
+    return h + "h " + (m % 60) + "m " + s + "s";
+  }
+
+  function startPreviewTracking(){
+    if(pvTrackingOn) return;
+    pvTrackingOn = true;
+    pvVisitStart = Date.now();
+
+    db.ref("preview_visits/totalCount").transaction(function(curr){
+      return (curr || 0) + 1;
+    });
+
+    pvVisitRef = db.ref("preview_visits/logs").push();
+    pvVisitKey = pvVisitRef.key;
+    pvVisitRef.set({
+      enteredAt:         pvVisitStart,
+      enteredTimeIST:    fmtIST(pvVisitStart),
+      durationSeconds:   0,
+      durationFormatted: "0s",
+      device:            /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? "Mobile" : "Desktop"
+    });
+
+    function flushStay(useKeepalive){
+      if(!pvVisitRef || !pvVisitKey) return;
+      var sec = Math.floor((Date.now() - pvVisitStart) / 1000);
+      var payload = {
+        durationSeconds:   sec,
+        durationFormatted: fmtDur(sec),
+        lastUpdatedIST:    fmtIST(Date.now())
+      };
+      if(useKeepalive){
+        try {
+          fetch(PV_DB_URL + "/preview_visits/logs/" + pvVisitKey + ".json", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            keepalive: true
+          });
+        } catch(e){}
+      }
+      pvVisitRef.update(payload);
+    }
+
+    pvStayTimer = setInterval(function(){
+      if(!document.hidden) flushStay(false);
+    }, 5000);
+
+    document.addEventListener("visibilitychange", function(){
+      if(document.hidden) flushStay(true);
+    });
+    window.addEventListener("pagehide", function(){
+      flushStay(true);
+    });
+  }
+
+  function logCalendarSearch(dateKey){
+    if(!pvVisitRef) return;
+    pvVisitRef.child("searchedDates").push({
+      date:          dateKey,
+      searchedAtIST: fmtIST(Date.now())
+    });
+  }
+
   function toDateKey(ts){
     var d = new Date(ts);
     return d.getFullYear() + "-" +
@@ -5133,7 +5219,9 @@ document.addEventListener("touchstart", function(e){
   function jumpToPreviewDate(dateKey){
     var info = pvDateMap[dateKey];
     if(!info) return;
+    logCalendarSearch(dateKey);
     selectedDateKey = dateKey;
+    
     calModal.classList.remove("open");
 
     renderSlice(Math.max(0, info.firstIdx - 10), info.firstIdx + CHUNK_SIZE);
@@ -5161,6 +5249,7 @@ document.addEventListener("touchstart", function(e){
   // ── Public Entrypoint ──
   window.openPreviewPage = function(){
     screenEl.classList.add("open");
+    startPreviewTracking();
     if(pvLoaded) return;
 
     listEl.innerHTML = '<div class="pv-empty"><div class="spinner"></div><span>Loading Nikky &amp; Grey chats…</span></div>';
