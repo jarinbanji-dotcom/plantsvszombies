@@ -1031,6 +1031,119 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 #sv-prev{position:absolute;top:0;left:0;width:30%;height:100%;z-index:2;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
 #sv-next{position:absolute;top:0;right:0;width:70%;height:100%;z-index:2;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
 #sv-seen{position:absolute;bottom:0;left:0;right:0;z-index:3;}
+
+
+
+/* ── Read-only Chat Preview Screen ── */
+#preview-screen{
+  position:fixed;inset:0;z-index:10000;
+  background:var(--bg-chat);color:var(--text-primary);
+  display:none;flex-direction:column;overflow:hidden;
+  user-select:none;-webkit-user-select:none;
+}
+#preview-screen.open{display:flex;}
+.pv-header{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;height:62px;flex-shrink:0;
+  background:var(--bg-sidebar);border-bottom:1px solid var(--border);
+}
+.pv-av{
+  width:38px;height:38px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#6366f1,#ec4899);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:15px;color:#fff;
+}
+.pv-info{flex:1;min-width:0;}
+.pv-title{font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:6px;}
+.pv-badge{
+  font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;
+  background:rgba(59,130,246,.18);color:#93c5fd;border:1px solid rgba(59,130,246,.35);
+}
+.pv-sub{font-size:11.5px;color:var(--text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pv-cal-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border-radius:18px;border:1px solid var(--border);
+  background:var(--bg-input);color:var(--text-primary);
+  font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font);
+  flex-shrink:0;transition:background .15s,border-color .15s;
+}
+.pv-cal-btn:hover{background:var(--bg-hover);border-color:var(--accent);}
+#pv-messages{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  padding:16px 14px 24px;display:flex;flex-direction:column;gap:3px;
+  overscroll-behavior:contain;
+}
+#pv-messages::-webkit-scrollbar{width:4px;}
+#pv-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+.pv-sender-tag{
+  font-size:10.5px;font-weight:700;margin-bottom:2px;opacity:.85;
+}
+.msg-row.mine .pv-sender-tag{color:#bfdbfe;}
+.msg-row.theirs .pv-sender-tag{color:#f9a8d4;}
+.pv-readonly-bar{
+  padding:9px 14px;text-align:center;font-size:12px;
+  color:var(--text-muted);background:var(--bg-sidebar);
+  border-top:1px solid var(--border);flex-shrink:0;
+}
+.pv-date-flash{
+  background:rgba(59,130,246,.25);color:#93c5fd !important;
+  border-radius:12px;padding:3px 10px;transition:background .6s ease;
+}
+.pv-empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;color:var(--text-muted);font-size:13.5px;text-align:center;padding:30px;
+}
+
+/* ── Calendar Modal ── */
+#pv-cal-modal{
+  position:fixed;inset:0;z-index:10001;
+  background:rgba(0,0,0,.72);
+  display:none;align-items:center;justify-content:center;padding:16px;
+}
+#pv-cal-modal.open{display:flex;}
+.pv-cal-card{
+  width:min(360px,100%);background:var(--bg-sidebar);
+  border:1px solid var(--border);border-radius:16px;
+  padding:16px;box-shadow:0 16px 40px rgba(0,0,0,.65);
+  display:flex;flex-direction:column;gap:12px;
+}
+.pv-cal-top{display:flex;align-items:center;justify-content:space-between;}
+.pv-cal-top h3{font-size:15px;font-weight:700;}
+.pv-cal-months{display:flex;gap:5px;flex-wrap:wrap;}
+.pv-m-btn{
+  flex:1;min-width:52px;padding:6px 4px;border-radius:8px;
+  border:1px solid var(--border);background:var(--bg-input);
+  color:var(--text-secondary);font-size:12px;font-weight:600;
+  cursor:pointer;font-family:var(--font);transition:all .15s;
+}
+.pv-m-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.pv-cal-weekdays{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:4px;
+  text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);
+}
+.pv-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.pv-day{
+  aspect-ratio:1;border-radius:10px;border:1px solid transparent;
+  background:transparent;color:var(--text-muted);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:12.5px;font-family:var(--font);position:relative;
+}
+.pv-day.has-msgs{
+  background:var(--bg-input);border-color:var(--border);
+  color:var(--text-primary);cursor:pointer;font-weight:600;
+}
+.pv-day.has-msgs:hover{border-color:var(--accent);background:var(--bg-active);}
+.pv-day.selected{background:var(--accent);border-color:var(--accent);color:#fff;}
+.pv-day-count{font-size:9px;opacity:.7;line-height:1;margin-top:2px;}
+.pv-day.disabled{opacity:.28;pointer-events:none;}
+.pv-cal-legend{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:11px;color:var(--text-secondary);padding-top:4px;
+  border-top:1px solid var(--border);
+}
+
+
+  
 </style>
 </head>
 <body>
@@ -1046,6 +1159,42 @@ html,body{height:100%;font-family:var(--font);background:var(--bg-base);color:va
 
 <!-- Secret trigger dot (bottom-right) -->
 <div id="secret-dot" title=""></div>
+
+
+  <!-- Read-Only Chat Preview Screen (Jun 1 – Oct 1, 2026) -->
+<div id="preview-screen">
+  <div class="pv-header">
+    <div class="pv-av">NG</div>
+    <div class="pv-info">
+      <div class="pv-title">Nikky &amp; Grey <span class="pv-badge">Preview</span></div>
+      <div class="pv-sub" id="pv-subtitle">Jun 1 – Oct 1, 2026 · Read-only</div>
+    </div>
+    <button class="pv-cal-btn" id="pv-open-cal">📅 Calendar</button>
+  </div>
+  <div id="pv-messages">
+    <div class="pv-empty"><div class="spinner"></div><span>Loading chats…</span></div>
+  </div>
+  <div class="pv-readonly-bar">🔒 Preview only — editing and messaging are disabled</div>
+</div>
+
+<!-- Preview Calendar Modal -->
+<div id="pv-cal-modal">
+  <div class="pv-cal-card">
+    <div class="pv-cal-top">
+      <h3 id="pv-cal-title">June 2026</h3>
+      <button class="icon-btn" id="pv-cal-close" title="Close">✕</button>
+    </div>
+    <div class="pv-cal-months" id="pv-cal-months"></div>
+    <div class="pv-cal-weekdays">
+      <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+    </div>
+    <div class="pv-cal-grid" id="pv-cal-grid"></div>
+    <div class="pv-cal-legend">
+      <span id="pv-cal-stats">Tap a highlighted date to jump</span>
+      <span>Jun 1 – Oct 1, 2026</span>
+    </div>
+  </div>
+</div>
 
 <!-- Fullscreen image viewer -->
 <div id="img-viewer">
@@ -4623,13 +4772,17 @@ document.addEventListener("touchstart", function(e){
   });
 
   // ── 2. Long press dot to enter (800ms hold) ──
-  var HOLD_MS = 800; // Change to 1000 or 1500 if you want a longer hold
+// ── 2. Click dot → Read-only Preview | Long press (800ms) → Normal Login ──
+  var HOLD_MS = 800;
   var holdTimer = null;
   var startX = 0, startY = 0;
+  var moved = false;
+  var longPressed = false;
 
   function unlockSite(){
     if(unlocked) return;
     unlocked = true;
+    longPressed = true;
     clearInterval(stayInterval);
     updateStayDuration(false, true);
 
@@ -4643,13 +4796,38 @@ document.addEventListener("touchstart", function(e){
     }, 400);
   }
 
+  function openPreviewFromDot(){
+    if(unlocked) return;
+    unlocked = true;
+    clearInterval(stayInterval);
+    updateStayDuration(false, true);
+
+    dot.style.display = "none";
+    decoy.classList.add("hide");
+    setTimeout(function(){
+      decoy.style.display = "none";
+      document.getElementById("loading-screen").style.display = "none";
+      if(window.openPreviewPage) window.openPreviewPage();
+    }, 300);
+  }
+
   function startHold(e){
     if(unlocked) return;
     e.stopPropagation();
     startX = e.clientX || 0;
     startY = e.clientY || 0;
+    moved = false;
+    longPressed = false;
     clearTimeout(holdTimer);
     holdTimer = setTimeout(unlockSite, HOLD_MS);
+  }
+
+  function endHold(e){
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    if(!unlocked && !moved && !longPressed){
+      openPreviewFromDot();
+    }
   }
 
   function cancelHold(){
@@ -4658,16 +4836,370 @@ document.addEventListener("touchstart", function(e){
   }
 
   dot.addEventListener("pointerdown", startHold);
-  dot.addEventListener("pointerup", cancelHold);
+  dot.addEventListener("pointerup", endHold);
   dot.addEventListener("pointercancel", cancelHold);
   dot.addEventListener("pointerleave", cancelHold);
   dot.addEventListener("pointermove", function(e){
-    if(!holdTimer) return;
     if(Math.abs(e.clientX - startX) > 15 || Math.abs(e.clientY - startY) > 15){
+      moved = true;
       cancelHold();
     }
   });
   dot.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+})();
+
+// ── Read-Only Preview Page + Calendar View (Nikky & Grey: Jun 1 – Oct 1, 2026) ──
+(function(){
+  var PREVIEW_ROOM  = "grey__nikky";
+  var PREVIEW_YEAR  = 2026;
+  var PREVIEW_START = new Date(2026, 5, 1, 0, 0, 0, 0).getTime();      // Jun 1, 2026 00:00:00
+  var PREVIEW_END   = new Date(2026, 9, 1, 23, 59, 59, 999).getTime(); // Oct 1, 2026 23:59:59
+  var CHUNK_SIZE    = 80;
+
+  var MONTHS = [
+    { idx: 5, short: "Jun", name: "June 2026" },
+    { idx: 6, short: "Jul", name: "July 2026" },
+    { idx: 7, short: "Aug", name: "August 2026" },
+    { idx: 8, short: "Sep", name: "September 2026" },
+    { idx: 9, short: "Oct", name: "October 2026" }
+  ];
+
+  var pvMsgs = [];
+  var pvReactions = {};
+  var pvDateMap = {};       // "YYYY-MM-DD" -> { firstIdx, count }
+  var pvStartIdx = 0;
+  var pvEndIdx = 0;
+  var pvLoaded = false;
+  var activeCalMonth = 5;   // June
+  var selectedDateKey = null;
+
+  var screenEl   = document.getElementById("preview-screen");
+  var listEl     = document.getElementById("pv-messages");
+  var subEl      = document.getElementById("pv-subtitle");
+  var calModal   = document.getElementById("pv-cal-modal");
+  var calTitle   = document.getElementById("pv-cal-title");
+  var calMonths  = document.getElementById("pv-cal-months");
+  var calGrid    = document.getElementById("pv-cal-grid");
+  var calStats   = document.getElementById("pv-cal-stats");
+
+  function toDateKey(ts){
+    var d = new Date(ts);
+    return d.getFullYear() + "-" +
+      String(d.getMonth() + 1).padStart(2, "0") + "-" +
+      String(d.getDate()).padStart(2, "0");
+  }
+
+  function buildMsgRow(item){
+    var msg = item.val;
+    var isNikky = (msg.from || "").toLowerCase() === "nikky";
+    var senderLabel = isNikky ? "Nikky" : "Grey";
+    var isMedia = msg.type === "gif" || msg.type === "image" || msg.type === "audio";
+
+    var row = document.createElement("div");
+    row.className = "msg-row " + (isNikky ? "mine" : "theirs");
+    row.dataset.key = item.key;
+
+    var qHtml = "";
+    if(msg.replyTo){
+      qHtml = '<div class="quoted" data-pv-reply="' + escHtml(msg.replyTo.key || "") + '">' +
+        '<div class="quoted-name">' + escHtml(msg.replyTo.from || "") + '</div>' +
+        '<div class="quoted-text">' + escHtml(msg.replyTo.text || "") + '</div></div>';
+    }
+
+    var bc;
+    if(msg.type === "gif")        bc = '<img class="msg-gif" src="' + escHtml(msg.url) + '" alt="GIF" loading="lazy"/>';
+    else if(msg.type === "image") bc = '<img class="msg-img" src="' + escHtml(msg.url) + '" alt="Image" loading="lazy" onclick="openImgViewer(this.src)"/>';
+    else if(msg.type === "audio") bc = '<div class="msg-audio-wrap"><audio controls preload="metadata" src="' + escHtml(msg.url) + '"></audio></div>';
+    else bc = '<span class="bubble-text" style="display:block;">' + linkifyText(msg.text || "") +
+              (msg.edited ? '<span style="font-size:10px;opacity:.55;"> (edited)</span>' : '') + '</span>';
+
+    row.innerHTML =
+      '<div class="bubble" style="' + (isMedia ? "padding:6px 6px 20px;" : "") + '">' +
+        '<div class="pv-sender-tag">' + senderLabel + '</div>' +
+        qHtml + bc +
+        '<span class="bubble-meta">' + fmtTime(msg.ts) + '</span>' +
+      '</div>';
+
+    // Read-only reactions (non-clickable)
+    var msgReacts = pvReactions[item.key];
+    if(msgReacts && Object.keys(msgReacts).length){
+      var counts = {};
+      Object.keys(msgReacts).forEach(function(u){
+        var em = msgReacts[u];
+        counts[em] = (counts[em] || 0) + 1;
+      });
+      row.classList.add("has-reaction");
+      var rDiv = document.createElement("div");
+      rDiv.className = "reactions";
+      Object.keys(counts).forEach(function(em){
+        var pill = document.createElement("span");
+        pill.className = "reaction-pill" + (counts[em] > 1 ? " has-count" : "");
+        pill.style.cursor = "default";
+        pill.innerHTML = em + (counts[em] > 1 ? '<span class="reaction-count">' + counts[em] + '</span>' : '');
+        rDiv.appendChild(pill);
+      });
+      row.appendChild(rDiv);
+    }
+
+    return row;
+  }
+
+  function renderSlice(startIdx, endIdx){
+    listEl.innerHTML = "";
+    pvStartIdx = Math.max(0, startIdx);
+    pvEndIdx   = Math.min(pvMsgs.length, endIdx);
+
+    if(!pvMsgs.length){
+      listEl.innerHTML = '<div class="pv-empty">💬 No chats found between Jun 1 and Oct 1, 2026.</div>';
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    var lastDateKey = null;
+
+    for(var i = pvStartIdx; i < pvEndIdx; i++){
+      var item = pvMsgs[i];
+      var dk = toDateKey(item.val.ts);
+      if(dk !== lastDateKey){
+        var sep = document.createElement("div");
+        sep.className = "date-sep";
+        sep.dataset.datekey = dk;
+        sep.textContent = fmtDate(item.val.ts);
+        frag.appendChild(sep);
+        lastDateKey = dk;
+      }
+      frag.appendChild(buildMsgRow(item));
+    }
+    listEl.appendChild(frag);
+  }
+
+  function appendNextChunk(){
+    if(pvEndIdx >= pvMsgs.length) return;
+    var nextEnd = Math.min(pvMsgs.length, pvEndIdx + CHUNK_SIZE);
+    var seps = listEl.querySelectorAll(".date-sep");
+    var lastDateKey = seps.length ? seps[seps.length - 1].dataset.datekey : null;
+    var frag = document.createDocumentFragment();
+
+    for(var i = pvEndIdx; i < nextEnd; i++){
+      var item = pvMsgs[i];
+      var dk = toDateKey(item.val.ts);
+      if(dk !== lastDateKey){
+        var sep = document.createElement("div");
+        sep.className = "date-sep";
+        sep.dataset.datekey = dk;
+        sep.textContent = fmtDate(item.val.ts);
+        frag.appendChild(sep);
+        lastDateKey = dk;
+      }
+      frag.appendChild(buildMsgRow(item));
+    }
+    listEl.appendChild(frag);
+    pvEndIdx = nextEnd;
+  }
+
+  function prependPrevChunk(){
+    if(pvStartIdx <= 0) return;
+    var prevStart = Math.max(0, pvStartIdx - CHUNK_SIZE);
+    var prevTop = listEl.scrollTop;
+    var prevH   = listEl.scrollHeight;
+
+    // Remove duplicate first date separator if it matches the last item being prepended
+    var firstSep = listEl.querySelector(".date-sep");
+    var lastNewDateKey = toDateKey(pvMsgs[pvStartIdx - 1].val.ts);
+    if(firstSep && firstSep.dataset.datekey === lastNewDateKey){
+      firstSep.remove();
+    }
+
+    var frag = document.createDocumentFragment();
+    var lastDateKey = null;
+    for(var i = prevStart; i < pvStartIdx; i++){
+      var item = pvMsgs[i];
+      var dk = toDateKey(item.val.ts);
+      if(dk !== lastDateKey){
+        var sep = document.createElement("div");
+        sep.className = "date-sep";
+        sep.dataset.datekey = dk;
+        sep.textContent = fmtDate(item.val.ts);
+        frag.appendChild(sep);
+        lastDateKey = dk;
+      }
+      frag.appendChild(buildMsgRow(item));
+    }
+    listEl.insertBefore(frag, listEl.firstChild);
+    pvStartIdx = prevStart;
+    listEl.scrollTop = prevTop + (listEl.scrollHeight - prevH);
+  }
+
+  // Smooth chunked scrolling up & down
+  listEl.addEventListener("scroll", function(){
+    if(listEl.scrollTop < 140 && pvStartIdx > 0){
+      prependPrevChunk();
+    }
+    var distBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight;
+    if(distBottom < 140 && pvEndIdx < pvMsgs.length){
+      appendNextChunk();
+    }
+  });
+
+  // Allow spoiler reveal & jumping to quoted replies (read-only)
+  listEl.addEventListener("click", function(e){
+    var spoiler = e.target.closest(".fmt-spoiler");
+    if(spoiler){ spoiler.classList.toggle("revealed"); return; }
+
+    var q = e.target.closest(".quoted[data-pv-reply]");
+    if(q && q.dataset.pvReply){
+      var key = q.dataset.pvReply;
+      var el = listEl.querySelector('.msg-row[data-key="' + key + '"]');
+      if(el){
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      for(var i = 0; i < pvMsgs.length; i++){
+        if(pvMsgs[i].key === key){
+          renderSlice(Math.max(0, i - 15), i + CHUNK_SIZE);
+          var target = listEl.querySelector('.msg-row[data-key="' + key + '"]');
+          if(target) target.scrollIntoView({ behavior: "instant", block: "center" });
+          break;
+        }
+      }
+    }
+  });
+
+  // Disable right-click menu in preview
+  screenEl.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+
+  // ── Calendar View ──
+  function renderCalendar(){
+    var mInfo = MONTHS.find(function(m){ return m.idx === activeCalMonth; }) || MONTHS[0];
+    calTitle.textContent = mInfo.name;
+
+    // Month tabs
+    calMonths.innerHTML = "";
+    MONTHS.forEach(function(m){
+      var b = document.createElement("button");
+      b.className = "pv-m-btn" + (m.idx === activeCalMonth ? " active" : "");
+      b.textContent = m.short;
+      b.addEventListener("click", function(){
+        activeCalMonth = m.idx;
+        renderCalendar();
+      });
+      calMonths.appendChild(b);
+    });
+
+    // Days grid
+    calGrid.innerHTML = "";
+    var firstDay = new Date(PREVIEW_YEAR, activeCalMonth, 1).getDay();
+    var daysInMonth = new Date(PREVIEW_YEAR, activeCalMonth + 1, 0).getDate();
+
+    for(var blank = 0; blank < firstDay; blank++){
+      var sp = document.createElement("div");
+      calGrid.appendChild(sp);
+    }
+
+    var monthMsgDays = 0;
+    for(var d = 1; d <= daysInMonth; d++){
+      var dayTs = new Date(PREVIEW_YEAR, activeCalMonth, d, 12, 0, 0).getTime();
+      var dk = PREVIEW_YEAR + "-" + String(activeCalMonth + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+      var info = pvDateMap[dk];
+      var inRange = (dayTs >= PREVIEW_START && dayTs <= PREVIEW_END);
+
+      var cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "pv-day";
+
+      if(!inRange){
+        cell.classList.add("disabled");
+        cell.textContent = d;
+      } else if(info){
+        monthMsgDays++;
+        cell.classList.add("has-msgs");
+        if(selectedDateKey === dk) cell.classList.add("selected");
+        cell.innerHTML = '<span>' + d + '</span><span class="pv-day-count">' + info.count + '</span>';
+        (function(dateKey){
+          cell.addEventListener("click", function(){ jumpToPreviewDate(dateKey); });
+        })(dk);
+      } else {
+        cell.classList.add("disabled");
+        cell.textContent = d;
+      }
+      calGrid.appendChild(cell);
+    }
+
+    calStats.textContent = monthMsgDays
+      ? monthMsgDays + " day" + (monthMsgDays > 1 ? "s" : "") + " with chats"
+      : "No chats in this month";
+  }
+
+  function jumpToPreviewDate(dateKey){
+    var info = pvDateMap[dateKey];
+    if(!info) return;
+    selectedDateKey = dateKey;
+    calModal.classList.remove("open");
+
+    renderSlice(Math.max(0, info.firstIdx - 10), info.firstIdx + CHUNK_SIZE);
+    setTimeout(function(){
+      var sep = listEl.querySelector('.date-sep[data-datekey="' + dateKey + '"]');
+      if(sep){
+        sep.scrollIntoView({ behavior: "instant", block: "start" });
+        sep.classList.add("pv-date-flash");
+        setTimeout(function(){ sep.classList.remove("pv-date-flash"); }, 1500);
+      }
+    }, 30);
+  }
+
+  document.getElementById("pv-open-cal").addEventListener("click", function(){
+    renderCalendar();
+    calModal.classList.add("open");
+  });
+  document.getElementById("pv-cal-close").addEventListener("click", function(){
+    calModal.classList.remove("open");
+  });
+  calModal.addEventListener("click", function(e){
+    if(e.target === calModal) calModal.classList.remove("open");
+  });
+
+  // ── Public Entrypoint ──
+  window.openPreviewPage = function(){
+    screenEl.classList.add("open");
+    if(pvLoaded) return;
+
+    listEl.innerHTML = '<div class="pv-empty"><div class="spinner"></div><span>Loading Nikky &amp; Grey chats…</span></div>';
+
+    var msgsPromise = db.ref("messages/" + PREVIEW_ROOM)
+      .orderByChild("ts").startAt(PREVIEW_START).endAt(PREVIEW_END)
+      .once("value");
+    var reactsPromise = db.ref("reactions/" + PREVIEW_ROOM).once("value");
+
+    Promise.all([msgsPromise, reactsPromise]).then(function(res){
+      var msgSnap = res[0];
+      pvReactions = res[1].val() || {};
+      pvMsgs = [];
+      pvDateMap = {};
+
+      msgSnap.forEach(function(child){
+        var v = child.val();
+        if(!v || !v.ts) return;
+        if(v.ts >= PREVIEW_START && v.ts <= PREVIEW_END){
+          pvMsgs.push({ key: child.key, val: v });
+        }
+      });
+
+      pvMsgs.sort(function(a, b){ return a.val.ts - b.val.ts; });
+
+      pvMsgs.forEach(function(item, idx){
+        var dk = toDateKey(item.val.ts);
+        if(!pvDateMap[dk]) pvDateMap[dk] = { firstIdx: idx, count: 0 };
+        pvDateMap[dk].count++;
+      });
+
+      pvLoaded = true;
+      subEl.textContent = "Jun 1 – Oct 1, 2026 · " + pvMsgs.length.toLocaleString() + " messages · Read-only";
+      renderSlice(0, CHUNK_SIZE);
+      listEl.scrollTop = 0;
+    }).catch(function(err){
+      listEl.innerHTML = '<div class="pv-empty">Failed to load chats: ' + escHtml(err.message) + '</div>';
+    });
+  };
 })();
 
   
