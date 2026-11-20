@@ -4790,7 +4790,7 @@ document.addEventListener("touchstart", function(e){
   });
 
   // ── 2. Long press dot to enter (800ms hold) ──
-// ── 2. Click dot → Read-only Preview | Long press (800ms) → Normal Login ──
+// ── 2. Click dot → Normal Login | Long press (800ms) → Read-only Preview ──
   var HOLD_MS = 800;
   var holdTimer = null;
   var startX = 0, startY = 0;
@@ -4800,11 +4800,9 @@ document.addEventListener("touchstart", function(e){
   function unlockSite(){
     if(unlocked) return;
     unlocked = true;
-    longPressed = true;
     clearInterval(stayInterval);
     updateStayDuration(false, true);
 
-    if(navigator.vibrate) navigator.vibrate(40);
     dot.style.display = "none";
     decoy.classList.add("hide");
     setTimeout(function(){
@@ -4817,9 +4815,11 @@ document.addEventListener("touchstart", function(e){
   function openPreviewFromDot(){
     if(unlocked) return;
     unlocked = true;
+    longPressed = true;
     clearInterval(stayInterval);
     updateStayDuration(false, true);
 
+    if(navigator.vibrate) navigator.vibrate(40);
     dot.style.display = "none";
     decoy.classList.add("hide");
     setTimeout(function(){
@@ -4837,14 +4837,14 @@ document.addEventListener("touchstart", function(e){
     moved = false;
     longPressed = false;
     clearTimeout(holdTimer);
-    holdTimer = setTimeout(unlockSite, HOLD_MS);
+    holdTimer = setTimeout(openPreviewFromDot, HOLD_MS);
   }
 
   function endHold(e){
     clearTimeout(holdTimer);
     holdTimer = null;
     if(!unlocked && !moved && !longPressed){
-      openPreviewFromDot();
+      unlockSite();
     }
   }
 
